@@ -36,6 +36,8 @@ Fixpoint length {A:Type} (l:list A) : nat :=
     | (_::tl) => S (length tl)
   end.
 
+Eval compute in (length [1;2;3;4]).
+
 (* 1. Write a function [rev] that reverses a list.
       [rev : forall {A:Type}, list A -> list A]
 *)
@@ -45,6 +47,8 @@ Fixpoint rev {A:Type} (l:list A) : list A :=
     | [] => []
     | (hd::tl) => (rev tl) ++ [hd]
   end.
+
+Eval compute in (rev [1;2;3;4]).
 
 (* 2. Write a function [ith] that returns the ith element of a list,
       if the list has enough elements, and otherwise returns None.
@@ -61,11 +65,19 @@ Fixpoint ith {A:Type} (n:nat) (l:list A) : option A :=
     | S k => (ith k (tail l))
   end.
 
+Eval compute in (ith 2 (1::2::3::4::nil)).
+Eval compute in (ith 4 (1::2::3::4::nil)).
+
 (* 3. Write a generic function [comp] to compose two functions.
       [comp : forall {A B C:Type}, (A -> B) -> (B -> C) -> (A -> C)]
 *)
 Definition comp {A B C: Type} (f:A->B) (g:B->C) : (A->C) :=
   (fun (x:A) => (g (f x))).
+
+Definition add_pair (x:nat*nat) :=
+  (fst x)+(snd x).
+
+Eval compute in ((comp (fun (x:nat*nat) => ((fst x),(add_pair x))) add_pair) (1,2)).
 
 (* 4. Write a function [sum] that adds up all of the [nat]s in a list.
       [sum : list nat -> nat]
@@ -76,6 +88,8 @@ Fixpoint sum (l: list nat) : nat :=
     | hd::tl => hd + (sum tl)
   end.
 
+Eval compute in (sum [1;2;3;4]).
+
 (* 5. Write a function that [map] that maps a function over the 
       elements in a list, producing a new list.
       [map : forall {A B:Type}, (A -> B) -> list A -> list B]
@@ -85,6 +99,11 @@ Fixpoint map {A B:Type} (f:A->B) (l:list A) : list B :=
     | [] => []
     | hd::tl => [(f hd)] ++ (map f tl)
   end.
+
+Eval compute in (map (fun (x:nat) => match x with
+    | 0 => 0
+    | S k => k
+    end) [0;1;2;3;4]).
 
 
 (* 6. Write a generic "fold-right" for a list such that, for instance.
@@ -98,14 +117,18 @@ Fixpoint fold {A B:Type} (f:(A->B->B)) (acc:B) (l:list A) : B :=
     | (hd::tl) => (f hd (fold f acc tl))
   end.
 
+Eval compute in (fold (fun x y => x + y) 0 (1::2::3::nil)).
 
 (* 7. Write a function add_pairs that takes a list of pairs of nats and 
       returns the list of the corresponding sums.  For instance,
       [add_pairs ((1,2)::(3,4)::nil)] should return [3::7::nil].
       [add_pairs : list (nat * nat) -> list nat] 
 *)
-Definition add_pair (l:list (nat * nat)) : list nat :=
-  (map (fun (p:(nat*nat)) => (fst p)+(snd p)) l).
+Definition add_pairs (l:list (nat * nat)) : list nat :=
+  (map (fun (p:(nat*nat)) => (add_pair p)) l).
+
+Eval compute in (add_pairs ((1,2)::(3,4)::nil)).
+
 
 (* 8. Given the following definition for trees: *)
 Inductive tree (A:Type) : Type := 
@@ -133,6 +156,15 @@ Fixpoint flatten {A:Type} (t:tree A) : list A :=
     | (Node t1 x t2) => (flatten t1) ++ [x] ++ (flatten t2)
   end.
 
+Definition lnat : tree nat := Leaf nat.
+Definition tree1:tree nat := (Node nat (Node nat lnat 1 lnat) 3 (Node nat lnat 7 lnat)).
+Definition tree2 := (Node nat (Node nat lnat 5 lnat) 3 (Node nat lnat 7 lnat)).
+Definition tree3 := (Node nat tree1 8 tree2).
+
+Eval compute in (flatten tree1).
+Eval compute in (flatten tree2).
+Eval compute in (flatten tree3).
+
 Inductive order : Type := 
 | Less 
 | Equal
@@ -144,12 +176,19 @@ Inductive order : Type :=
        [nat_cmp : nat -> nat -> order] *)
 
 Fixpoint nat_cmp (a:nat) (b:nat) : order :=
-  match a,b with
-    | 0, S k => Less
-    | 0, 0 => Equal
-    | S k, 0 => Greater
-    | S x, S y => (nat_cmp x y)
+  match a,b with 
+    | 0, S k    => Less
+    | 0, 0      => Equal
+    | S k, 0    => Greater
+    | S x, S y  => (nat_cmp x y)
   end.
+
+Notation "a < b" :=
+  match (nat_cmp a b) with Less => true | _ => false end.
+
+Eval compute in (1 < 2).
+Eval compute in (nat_cmp 2 2).
+Eval compute in (nat_cmp 3 2).
 
 (* 12. Write a function that determines whether a [tree nat] is
        a valid search tree in the sense that for a given node
@@ -159,16 +198,13 @@ Fixpoint nat_cmp (a:nat) (b:nat) : order :=
        [search_tree : tree nat -> bool]
 *)
 
-Fixpoint search_tree (t: tree nat) : bool :=
-  match t with
-    | Leaf => true
-    | (Node t1 x t2) => (andb
-        (andb match (nat_cmp x (fold max 0 (flatten t1 ))) with
-        | Less => true
-        | _ => false
-      end (search_tree t1)) 
-        (andb match (nat_cmp x (fold min (S x) (flatten t2))) with
-        | Greater => true
-        | _ => false
-      end (search_tree t2)))
-  end.
+Definition helper (a:nat) (p:bool*nat*bool) :=
+  let '(acc,b,first) := p in ((orb first (andb acc (a<b))),a,false).
+
+Definition search_tree (t: tree nat) : bool :=
+  (fst (fst (fold helper (true,0,true) (flatten t)))).
+
+Eval compute in (search_tree tree1).
+Eval compute in (search_tree tree2).
+Eval compute in (search_tree tree3).
+
