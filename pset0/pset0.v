@@ -68,7 +68,7 @@ Require Import List.
 *)
 
 (* 8. Given the following definition for trees: *)
-Inductive tree (A:Type) : Type := 
+Inductive tree {A:Type} : Type := 
 | Leaf : tree A
 | Node : tree A -> A -> tree A -> tree A.
 
