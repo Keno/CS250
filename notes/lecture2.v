@@ -47,7 +47,7 @@ Print False.
    means that in OCaml, every type has an element and thus we
    can't use OCaml types to represents propositions such as [False].
    Another way to say this is that in OCaml, the "logic" of the 
-   language is inconsistent.  
+   language is "inconsistent."  
 
    There are other good reasons why Coq functions are required
    to terminate.  One is that the type-checker must sometimes
@@ -101,7 +101,7 @@ Module M1.
      evidence of B from it.  In fact, we will use the notation
      "->" to denote both functions and implication.  And we
      will use [fun x => ...] to build a function, or evidence
-     of an implication.  For instance: *)
+ccer     of an implication.  For instance: *)
   Definition t0 {A:Prop} : A -> True := 
     fun (H:A) => I.
 
@@ -205,7 +205,7 @@ End M1.
 
 (* Building proof objects by hand can be extremely difficult.
    So instead, we're going to use some *tactics* to construct
-   these objects.  Some useful tactics include:
+   these objects.  Some useful tactics include the following:
 
    auto   -- solves trivial goals such as "True" and "3 = 3" or
              "x = x".
@@ -241,6 +241,9 @@ End M1.
    apply H -- apply the hypothesis H to solve the current goal.
               This only works when H names a hypothesis that
               matches the given goal.
+
+   See also http://adam.chlipala.net/itp/tactic-reference.html
+   for a better list.
 *)
 
 (* Re-doing the examples above using tactics. *)

@@ -68,9 +68,12 @@ Require Import List.
 *)
 
 (* 8. Given the following definition for trees: *)
-Inductive tree {A:Type} : Type := 
+Inductive tree (A:Type) : Type := 
 | Leaf : tree A
 | Node : tree A -> A -> tree A -> tree A.
+
+Implicit Arguments Leaf [A].  (* Ask Coq to synthesis the type argument to Leaf *)
+Implicit Arguments Node [A].  (* Ditto for Node *)
 
 (* 9. Write a function which flattens the tree into a list.
       For instance, flatten on the tree:
@@ -84,6 +87,7 @@ Inductive tree {A:Type} : Type :=
    should yield [1::3::7::nil].
    [flatten : forall {A:Type}, tree A -> list A]
 *)
+
 
 Inductive order : Type := 
 | Less 
