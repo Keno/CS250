@@ -150,6 +150,7 @@ Inductive tree {A:Type} : Type :=
 | Leaf : tree
 | Node : tree -> A -> tree -> tree.
 
+Definition leaf : tree (A:=nat) := Leaf.
 Definition tree1 : tree := Node (Node Leaf 1 Leaf) 3 (Node Leaf 7 Leaf).
 Definition tree2 : tree := Node Leaf 3 (Node (Node Leaf 5 Leaf) 7 (Node Leaf 9 Leaf)).
 Definition tree3 : tree := Node (Node (Node Leaf 1 Leaf) 3 (Node Leaf 4 Leaf)) 5 Leaf.
@@ -175,6 +176,7 @@ Fixpoint flatten {A:Type} (t:tree) : list A :=
     | Node l v r => (flatten l) ++ (v::nil) ++ (flatten r)
   end.
 
+Eval compute in flatten leaf.
 Eval compute in flatten tree1.
 Eval compute in flatten tree2.
 Eval compute in flatten tree3.
@@ -233,6 +235,7 @@ Definition search_tree (t:tree) : bool :=
     end) (flatten t).
 
 (* expect true *)
+Eval compute in search_tree leaf.
 Eval compute in search_tree tree1.
 Eval compute in search_tree tree2.
 Eval compute in search_tree tree3.
@@ -253,6 +256,7 @@ Definition search_tree' (t:tree) : bool :=
   snd (fold track_increasing (true, 0, true) (flatten t)).
 
 (* expect true *)
+Eval compute in search_tree' leaf.
 Eval compute in search_tree' tree1.
 Eval compute in search_tree' tree2.
 Eval compute in search_tree' tree3.
@@ -260,6 +264,7 @@ Eval compute in search_tree' tree3.
 Eval compute in search_tree' tree1'.
 Eval compute in search_tree' tree2'.
 Eval compute in search_tree' tree3'.
+
 
 (*
 (* Why does this not work? *)
