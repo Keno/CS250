@@ -1,5 +1,7 @@
 (* KENO FISCHER *)
 
+(* Collaborators: Jao-ke Chin-Lee *)
+
 (* CS250 Problem Set 0:  Basic Functional Programming in Coq 
 
 Due:  Tuesday 9/9 at Midnight
