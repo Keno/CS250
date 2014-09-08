@@ -158,10 +158,9 @@ Fixpoint flatten {A:Type} (t:tree A) : list A :=
     | (Node t1 x t2) => (flatten t1) ++ [x] ++ (flatten t2)
   end.
 
-Definition lnat : tree nat := Leaf nat.
-Definition tree1:tree nat := (Node nat (Node nat lnat 1 lnat) 3 (Node nat lnat 7 lnat)).
-Definition tree2 := (Node nat (Node nat lnat 5 lnat) 3 (Node nat lnat 7 lnat)).
-Definition tree3 := (Node nat tree1 8 tree2).
+Definition tree1:tree nat := (Node (Node Leaf 1 Leaf) 3 (Node Leaf 7 Leaf)).
+Definition tree2 := (Node (Node Leaf 5 Leaf) 3 (Node Leaf 7 Leaf)).
+Definition tree3 := (Node tree1 8 tree2).
 
 Eval compute in (flatten tree1).
 Eval compute in (flatten tree2).
