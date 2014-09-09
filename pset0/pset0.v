@@ -158,6 +158,9 @@ Definition tree1' : tree := Node (Node Leaf 5 Leaf) 3 (Node Leaf 7 Leaf).
 Definition tree2' : tree := Node Leaf 5 (Node (Node Leaf 5 Leaf) 7 (Node Leaf 9 Leaf)).
 Definition tree3' : tree := Node (Node (Node Leaf 5 Leaf) 3 (Node Leaf 4 Leaf)) 5 Leaf.
 
+Implicit Arguments Leaf [A].  (* Ask Coq to synthesis the type argument to Leaf *)
+Implicit Arguments Node [A].  (* Ditto for Node *)
+
 (* 9. Write a function which flattens the tree into a list.
       For instance, flatten on the tree:
 
@@ -183,6 +186,7 @@ Eval compute in flatten tree3.
 Eval compute in flatten tree1'.
 Eval compute in flatten tree2'.
 Eval compute in flatten tree3'.
+
 
 Inductive order : Type := 
 | Less 

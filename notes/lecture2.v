@@ -1,6 +1,64 @@
 (* The top-level command [Check <exp>] tells you the type of the given exp. *)
 Check True.
 Check False.
+(* [True] and [False] are propositions or something classified by the type [Prop].  
+   They are not to be confused with [true] and [false] which are booleans.
+   The distinction is roughly, that [true] and [false] are objects, whereas
+   [True] and [False] are types.  What are the elements of the types [True]?
+   They are all the *proofs* that allow us to conclude "True".  In contrast,
+   the object [true] doesn't really name a collection of things.  
+
+   So what are some of the elements or proof objects in the special 
+   type [True]?
+*)
+Print True.
+(* Aha!  We see that one element is the constructor [I].  It's a way 
+   (in fact, the best way) to build a proof whose conclusion is the
+   trivial theorem [True].  
+*)
+Check I.
+(* But [I] is not the only way to build an object of type [True].  Another
+   example is:
+*)
+Check (fun x => x) I.
+(* And we will see many more examples of ways to construct a proof of [True].
+   So in general, an element of [Prop], such as [True], is the 
+   name of a theorem, and at the same type, names a collection of terms that
+   correspond to proofs of that theorem. 
+
+   What abouf [False]?
+*)
+Print False.
+(* [False] is a very, very funny inductive definition which has no
+   constructors.  So, there's no easy way to build an object that
+   has type [False].  A very, very deep result about Coq is that in
+   fact, there is no closed term E such that E : False.  In other
+   words, there's no way construct a proof of False, and that's a
+   very good thing.  
+
+   Now remember last time, that I said that all functions in Coq
+   must terminate?  Well, one reason why is that if we had diverging
+   computations, a la OCaml, then we would have a way to build
+   a term E of type False.  For instance, in OCaml, we can define:
+
+   letrec loop () : t = loop () 
+
+   for any type [t] that we like, includng an empty type.  This
+   means that in OCaml, every type has an element and thus we
+   can't use OCaml types to represents propositions such as [False].
+   Another way to say this is that in OCaml, the "logic" of the 
+   language is "inconsistent."  
+
+   There are other good reasons why Coq functions are required
+   to terminate.  One is that the type-checker must sometimes
+   normalize (i.e., simplify) expressions to see if they are equal.  
+   If that normalization process could diverge, then so could
+   type-checking.  
+
+   Later on, we'll see how it's possible to *model* computations
+   that might diverge.
+*)
+
 
 (* The top-level command [Locate "..."] helps to locate a symbol that's defined
    with notation.  In this case, we are searching for the notation for logical
@@ -13,17 +71,6 @@ Check and.
    with one constructor, [conj] which takes two [Prop]s as arguments,
    and produces a [Prop] as a result. *)
 Print and.
-
-(* What happens when we call [Print] on [True] and [False] ? *)
-Print True.
-Print False.
-
-(* They are also just inductive definitions.  [True] has one constructor
-   [I].  You can think of [I] as *the* proof of the proposition [True].
-   In contrast, [False] is an inductive definition with *no* constructors.
-   So there's no way to build a (closed) expression of type [False].  In other
-   words, there's no proof of [False].  
-*)
 
 Locate "_ \/ _".
 Check or.
@@ -54,7 +101,7 @@ Module M1.
      evidence of B from it.  In fact, we will use the notation
      "->" to denote both functions and implication.  And we
      will use [fun x => ...] to build a function, or evidence
-     of an implication.  For instance: *)
+ccer     of an implication.  For instance: *)
   Definition t0 {A:Prop} : A -> True := 
     fun (H:A) => I.
 
@@ -158,7 +205,7 @@ End M1.
 
 (* Building proof objects by hand can be extremely difficult.
    So instead, we're going to use some *tactics* to construct
-   these objects.  Some useful tactics include:
+   these objects.  Some useful tactics include the following:
 
    auto   -- solves trivial goals such as "True" and "3 = 3" or
              "x = x".
@@ -194,6 +241,9 @@ End M1.
    apply H -- apply the hypothesis H to solve the current goal.
               This only works when H names a hypothesis that
               matches the given goal.
+
+   See also http://adam.chlipala.net/itp/tactic-reference.html
+   for a better list.
 *)
 
 (* Re-doing the examples above using tactics. *)
