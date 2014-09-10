@@ -1,10 +1,11 @@
 (* The top-level command [Check <exp>] tells you the type of the given exp. *)
 Check True.
 Check False.
+
 (* [True] and [False] are propositions or something classified by the type [Prop].  
    They are not to be confused with [true] and [false] which are booleans.
    The distinction is roughly, that [true] and [false] are objects, whereas
-   [True] and [False] are types.  What are the elements of the types [True]?
+   [True] and [False] are types.  What are the elements of the type [True]?
    They are all the *proofs* that allow us to conclude "True".  In contrast,
    the object [true] doesn't really name a collection of things.  
 
@@ -22,6 +23,8 @@ Check I.
 *)
 Check (fun x => x) I.
 (* And we will see many more examples of ways to construct a proof of [True].
+   However, it will turn out that if a (closed) expression e : True, then
+
    So in general, an element of [Prop], such as [True], is the 
    name of a theorem, and at the same type, names a collection of terms that
    correspond to proofs of that theorem. 
@@ -71,7 +74,9 @@ Check and.
    with one constructor, [conj] which takes two [Prop]s as arguments,
    and produces a [Prop] as a result. *)
 Print and.
-
+Locate "_ * _".
+Check prod.
+Print prod.
 Locate "_ \/ _".
 Check or.
 
@@ -88,7 +93,7 @@ Module M1.
   (* Now we can start building some interesting proofs. *)
   Definition proof_of_true_and_true : True /\ True := 
     conj I I.
-  
+
   Definition proof_of_true_or_false : True \/ False := 
     or_introl I.
 
@@ -120,19 +125,32 @@ ccer     of an implication.  For instance: *)
         | conj H1 H2 => H1
       end.
   
-  Definition t3 {A B:Prop} : A /\ B -> B.
-    Abort.
-
+  Definition t3 {A B:Prop} : A /\ B -> B :=
+    fun (H: A /\ B) => 
+      match H with
+        | conj H1 H2 => H2
+      end.
+    
   Definition t4 {A B C:Prop} : 
-    (A -> C) /\ (B -> C) -> (A \/ B) -> C.
-    Abort.
+    (A -> C) /\ (B -> C) -> (A \/ B) -> C := 
+    fun (H1:(A->C)/\(B->C)) (H2:A\/B) => 
+      match H1 with 
+        | conj H3 H4 => match H2 with 
+                          | or_introl H5 => H3 H5
+                          | or_intror H6 => H4 H6
+                        end
+      end.
 
-  Definition t5 {A:Prop} : False -> A.
+  Definition t5 {A:Prop} : False -> A := 
+    fun (H:False) => 
+      match H with 
+      end.
 
-
-  Definition t6 {A B C D:Prop} : 
-    (A -> B \/ C) -> (B -> D) -> (C -> D) -> (A -> D).
-    Abort.
+  Definition t6 {A B C D:Prop} (H1:A -> B \/ C) : 
+    (B -> D) -> (C -> D) -> (A -> D) := 
+    fun H2 H3 H4 => 
+      let H5 := H1 H4 in 
+      t4 (conj H2 H3) H5.
 
   Locate "~ _".
   Check not.
@@ -140,8 +158,10 @@ ccer     of an implication.  For instance: *)
 
   (* Negation [~A] is just an abbreviation for [A -> False]. *)
   Definition t7 {A B C : Prop} : 
-    ~ (A /\ B) -> A -> B -> C.
-    Abort.
+    ~ (A /\ B) -> A -> B -> C := 
+    fun (H1 : (A/\B) -> False) (H2:A) (H3:B) => 
+      match H1 (conj H2 H3) with
+      end.
 
   Definition t7' : forall {A B C:Prop}, 
     ~ (A /\ B) -> A -> B -> C.                   
@@ -178,8 +198,15 @@ ccer     of an implication.  For instance: *)
      interesting theorem.  Notice that here I'm universally
      quantifying over an animal, using [forall].  *)
   Definition darwin : 
-    forall a:animal, has_bill a -> ~ live_birth a.
-    Abort.
+    forall a:animal, has_bill a -> ~ live_birth a := 
+    fun (a:animal) => 
+      match a return has_bill a -> ~live_birth a
+      with 
+        | Duck => fun H1 H2 => H2
+        | Platypus => fun H1 H2 => H2
+        | Cow => fun H1 H2 => H1
+        | Pig => fun H1 H2 => H1
+      end.
 
   Definition moos (a:animal) : Prop := 
     match a with 
@@ -200,7 +227,6 @@ ccer     of an implication.  For instance: *)
   Definition darwin3 : exists a:animal, (moos a /\ live_birth a) := 
     ex_intro _ Cow (conj I I).
 
-  Abort All.
 End M1.
 
 (* Building proof objects by hand can be extremely difficult.
@@ -292,17 +318,12 @@ Module M2.
 
   Lemma t1 {A B:Prop} : A -> B -> A /\ B.
   Proof.
-    intros H1 H2.
-    split.
-      apply H1.
-      apply H2.
+    auto.
   Qed.
 
   Lemma t2 {A B:Prop} : A /\ B -> A.
   Proof.
-    intro H.
-    destruct H.
-    apply H.
+    tauto.
   Qed.
 
   Lemma t3 {A B:Prop} : A /\ B -> B.
