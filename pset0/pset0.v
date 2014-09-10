@@ -165,6 +165,7 @@ Definition tree3 := (Node tree1 8 tree2).
 Eval compute in (flatten tree1).
 Eval compute in (flatten tree2).
 Eval compute in (flatten tree3).
+Eval compute in (flatten (@Leaf nat)).
 
 Inductive order : Type := 
 | Less 
