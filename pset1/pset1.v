@@ -9,24 +9,57 @@
 Module PSET1_EX1.
 
   Definition X1 {A B C D:Prop} : 
-    (B /\ (B -> C /\ D)) -> D.
+    (B /\ (B -> C /\ D)) -> D :=
+    fun (H:(B /\ (B -> C /\ D))) =>
+      match H with
+        | conj H1 H2 =>
+          match H2 H1 with
+            | conj _ H3 => H3
+          end
+      end.
 
   Definition X2 {A B C:Prop} : 
-    ~(A \/ B) -> B -> C.
+    ~(A \/ B) -> B -> C :=
+    fun (H1:(A\/B) -> False) (H2:B) =>
+      match H1 (or_intror H2) with
+      end.
 
   Definition X3 {A B C:Prop} : 
-    A /\ (B \/ C) -> (A /\ B) \/ (A /\ C).
+    A /\ (B \/ C) -> (A /\ B) \/ (A /\ C) :=
+    fun (H:(A /\ (B \/ C))) =>
+      match H with
+        | conj H1 H2 =>
+          match H2 with
+            | or_introl H3 => or_introl (conj H1 H3)
+            | or_intror H3 => or_intror (conj H1 H3)
+          end
+      end.
 
   (* To solve the following, you'll need to figure out what
      the definition of "<->" is and how to work with it... *)
   Definition X4 {A:Prop} : 
-    A <-> A. 
+    A <-> A :=
+    conj (fun H => H) (fun H => H).
 
+  Definition swap {A B:Prop} : (A /\ B) -> (B /\ A) :=
+    fun H => match H with conj H1 H2 => conj H2 H1 end.
   Definition X5 {A B:Prop} : 
-    (A <-> B) <-> (B <-> A).
+    (A <-> B) <-> (B <-> A) :=
+    conj swap swap.
 
+  Definition compose {A B C: Prop} :
+    (A -> B) -> (B -> C) -> (A -> C) :=
+    fun H1 H2 H3 =>
+      H2 (H1 H3).
   Definition X6 {A B C:Prop} : 
-    (A <-> B) -> (B <-> C) -> (A <-> C).
+    (A <-> B) -> (B <-> C) -> (A <-> C) :=
+    fun H1 H2 =>
+      match H1 with
+        | conj H3 H4 =>
+          match H2 with
+            | conj H5 H6 => conj (compose H3 H5) (compose H6 H4)
+          end
+      end.
 
   (* Thought exercise:  *)
 
@@ -38,8 +71,6 @@ Module PSET1_EX1.
      Try to prove it and see what goes wrong...  Interestingly,
      this will almost never bite us.  
   *)
-
-  Abort All.  (* delete this after finishing X1-X6 *)
 End PSET1_EX1.
 
 (* Now re-do these using only the following tactics:
@@ -56,37 +87,81 @@ Module PSET1_EX2.
   Lemma X1 {A B C D:Prop} : 
     (B /\ (B -> C /\ D)) -> D.
   Proof.
-    tauto.
+    intro H1.
+    destruct H1.
+    apply H0 in H.
+    destruct H.
+    apply H1.
   Qed.
 
   Lemma X2 {A B C:Prop} : 
     ~(A \/ B) -> B -> C.
   Proof.
-    tauto.
+    intros H1 H2.
+    destruct H1.
+    right.
+    apply H2.
   Qed.
 
   Lemma X3 {A B C:Prop} : 
     A /\ (B \/ C) -> (A /\ B) \/ (A /\ C).
   Proof.
-    tauto.
+    intro H1.
+    destruct H1.
+    destruct H0.
+    left.
+    split.
+    apply H.
+    apply H0.
+    right.
+    split.
+    apply H.
+    apply H0.
   Qed.
 
   Lemma X4 {A:Prop} : 
     A <-> A. 
   Proof.
-    tauto.
+    split.
+    intro H.
+    apply H.
+    intro H.
+    apply H.
   Qed.
 
   Lemma X5 {A B:Prop} : 
     (A <-> B) <-> (B <-> A).
   Proof.
-    tauto.
+    split.
+    intro H.
+    destruct H.
+    split.
+    apply H0.
+    apply H.
+    intro H.
+    destruct H.
+    split.
+    apply H0.
+    apply H.
   Qed.
 
   Lemma X6 {A B C:Prop} : 
     (A <-> B) -> (B <-> C) -> (A <-> C).
   Proof.
-    tauto.
+    intros H1 H2.
+    split.
+    destruct H1.
+    destruct H2.
+    intro H3.
+    apply H in H3.
+    apply H1 in H3.
+    apply H3.
+    destruct H1.
+    destruct H2.
+    intro H3.
+    apply H2 in H3.
+    apply H0 in H3.
+    apply H3.
   Qed.
 
 End PSET1_EX2.
@@ -102,36 +177,72 @@ End PSET1_EX2.
 *)
 Module PSET1_EX3.
   Require Import List.
+  Require Import Arith.
 
   Lemma zero_plus_x : forall n, 0 + n = n.
   Proof.
-    Admitted.
+    simpl.
+    reflexivity.
+  Qed.
 
   Lemma x_plus_zero : forall n, n + 0 = n.
   Proof.
-    Admitted.
+    induction n.
+    simpl.
+    reflexivity.
+    simpl.
+    rewrite IHn.
+    reflexivity.
+  Qed.
 
   Lemma map_map : forall {A B C:Type} (f:A->B) (g:B -> C) (xs:list A), 
     map g (map f xs) = map (fun x => g (f x)) xs.
   Proof.
-    Admitted.
+    induction xs.
+    simpl.
+    reflexivity.
+    simpl.
+    rewrite IHxs.
+    reflexivity.
+  Qed.
 
   Lemma app_assoc : forall {A:Type} (xs ys zs:list A), 
     xs ++ (ys ++ zs) = (xs ++ ys) ++ zs.
   Proof.
-    Admitted.
+    induction xs.
+    simpl.
+    reflexivity.
+    intros.
+    simpl.
+    rewrite IHxs.
+    reflexivity.
+  Qed.
 
   Lemma map_is_fold : forall {A B} (f:A->B) (xs:list A),
     map f xs = fold_right (fun x y => (f x)::y) nil xs.
   Proof.
-    Admitted.
+    induction xs.
+    simpl.
+    reflexivity.
+    simpl.
+    rewrite IHxs.
+    reflexivity.
+  Qed.
 
   Definition list_sum (xs:list nat) : nat := fold_right plus 0 xs.
 
   Lemma list_sum_app : forall (t1 t2: list nat), 
      list_sum (t1 ++ t2) = list_sum t1 + list_sum t2.
   Proof.
-    Admitted.
+    intros.
+    induction t1.
+    simpl.
+    reflexivity.
+    simpl.
+    rewrite IHt1.
+    rewrite plus_assoc.
+    reflexivity.
+   Qed.
 
   Inductive tree(A:Type) : Type := 
     | Leaf : tree A
@@ -147,7 +258,14 @@ Module PSET1_EX3.
 
   Lemma mirror_mirror : forall A (t:tree A), mirror (mirror t) = t.
   Proof.
-    Admitted.
+    induction t.
+    simpl.
+    reflexivity.
+    simpl.
+    rewrite IHt1.
+    rewrite IHt2.
+    reflexivity.
+  Qed.
 
   Fixpoint flatten {A:Type} (t:tree A) : list A := 
     match t with 
@@ -163,6 +281,16 @@ Module PSET1_EX3.
 
   Lemma tree_flatten_sum : forall t, tree_sum t = list_sum (flatten t).
   Proof.
-    Admitted.
+    induction t.
+    simpl.
+    reflexivity.
+    simpl.
+    rewrite list_sum_app.
+    rewrite IHt1.
+    simpl.
+    rewrite IHt2.
+    rewrite plus_assoc.
+    reflexivity.
+  Qed.
   
 End PSET1_EX3.
