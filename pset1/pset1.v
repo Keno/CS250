@@ -231,6 +231,17 @@ Module PSET1_EX3.
 
   Definition list_sum (xs:list nat) : nat := fold_right plus 0 xs.
 
+  Lemma plus_assoc' : forall (a b c: nat), a + (b + c) = (a + b) + c.
+  Proof.
+    intros.
+    unfold plus.
+    induction a.
+    simpl.
+    reflexivity.
+    rewrite IHa.
+    reflexivity.
+  Qed.
+
   Lemma list_sum_app : forall (t1 t2: list nat), 
      list_sum (t1 ++ t2) = list_sum t1 + list_sum t2.
   Proof.
@@ -240,7 +251,7 @@ Module PSET1_EX3.
     reflexivity.
     simpl.
     rewrite IHt1.
-    rewrite plus_assoc.
+    rewrite plus_assoc'.
     reflexivity.
    Qed.
 
@@ -289,7 +300,7 @@ Module PSET1_EX3.
     rewrite IHt1.
     simpl.
     rewrite IHt2.
-    rewrite plus_assoc.
+    rewrite plus_assoc'.
     reflexivity.
   Qed.
   
