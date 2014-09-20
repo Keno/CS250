@@ -279,6 +279,7 @@ Qed.
 
 (* But how do we prove something like [plus] is commutative or associative?  *)
 Print plus_comm.
+Check plus_assoc.
 Print plus_assoc.
 (* Aha!  They are using a function called [nat_ind]: *)
 Check nat_ind.
@@ -297,7 +298,12 @@ Check nat_ind.
   So let's use [nat_ind] to construct a proof that [plus] is 
   associative.
 *)
-Print nat_rect.
+Inductive tree(A:Type) : Type := 
+| Leaf : tree A
+| Node : tree A -> A -> tree A -> tree A.
+Print tree_rect.
+
+
 Lemma plus_associative : forall n m p, n + (m + p) = (n + m) + p.
 Proof.
   apply (nat_ind (fun n => forall m p, n + (m + p) = (n + m) + p)).
@@ -306,6 +312,8 @@ Proof.
     reflexivity.
   intros n IH m p.
   simpl.
+  rename m into m'.
+  rename p into p'.
   rewrite IH.
   reflexivity.
 Qed.
@@ -313,11 +321,11 @@ Qed.
    Actually, there's a tactic that will take care of doing
    the first step for you. It's called (surprise) [induction]:
 *)
-Lemma plus_associative' : forall n m p, n + (m + p) = (n + m) + p.
+Lemma plus_associative' : forall p m n, n + (m + p) = (n + m) + p.
 Proof.
   induction n.
+  simpl.
   auto.
-  intros. 
   simpl.
   rewrite IHn.
   auto.

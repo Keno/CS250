@@ -61,9 +61,13 @@ Fixpoint progDenote (p:prog) (s:stack) : option stack :=
       end
   end.
 
+Import ListNotations.
+Eval compute in progDenote [iConst 3; iConst 4; iBinop Times] [].
+Eval compute in progDenote (iConst 3::iConst 4::iBinop Times::nil) nil.
+
 Fixpoint compile (e:exp) : prog := 
   match e with 
-    | Const n => iConst n :: nil
+    | Const n => [iConst n]
     | Binop b e1 e2 => compile e2 ++ compile e1 ++ iBinop b :: nil
   end.
 
@@ -83,10 +87,9 @@ Proof.
   (* And now we can use this lemma to prove our desired theorem. *)  
   intros.
   rewrite (app_nil_end (compile e)).
-  rewrite compile_correct'.
+  rewrite compile_correct'.  
   reflexivity.
 Qed.
-
 
 (***** Second example ******)
 
@@ -113,7 +116,8 @@ Inductive tbinop : type -> type -> type -> Set :=
 Inductive texp : type -> Set :=
 | TNConst : nat -> texp Nat
 | TBConst : bool -> texp Bool
-| TBinop : forall t1 t2 t, tbinop t1 t2 t -> texp t1 -> texp t2 -> texp t.
+| TBinop : forall (t1 t2 t:type), tbinop t1 t2 t -> texp t1 -> 
+                                  texp t2 -> texp t.
 
 (* This is a kind of a funny function -- it's mapping our names for
    types, [Nat] and [Bool], to actual Coq types.  This is not something
@@ -147,7 +151,7 @@ Definition tbinopDenote arg1 arg2 res (b : tbinop arg1 arg2 res)
    when we use this kind of indexing.  And it's all happening more or less
    for free.
 *)
-Fixpoint texpDenote t (e : texp t) : typeDenote t :=
+Fixpoint texpDenote (t:type) (e : texp t) : typeDenote t :=
   match e with
     | TNConst n => n
     | TBConst b => b
