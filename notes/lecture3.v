@@ -3,7 +3,8 @@ Require Import Arith.
 
 (* The symbol "=" is just infix notation for the identifier [eq]. *)
 Locate "_ = _".
-
+Check eq.
+Check @eq.
 (* And when we print out the definition of [eq]: *)
 Print eq.
 (*
@@ -40,7 +41,6 @@ Check eq_refl 3.
 *)
 Lemma one_plus_two_equals_three : 1 + 2 = 3.
 Proof.
-  simpl.
   apply eq_refl.
 Qed.
 (*
@@ -95,7 +95,6 @@ Print one_plus_two_equals_three.
   as [3].  Similarly, we can prove:
 *)
 Lemma L1 : ((fun x => match x with | None => 0 | Some y => 1 + y end) (Some 2)) = 3.
-  simpl.
   reflexivity.  (* a tactic that is the same as [apply eq_refl]. *)
 Qed.
 
@@ -170,6 +169,9 @@ Qed.
    Let us take a look at this particular term which is automatically
    generated when we defined the [eq] Inductive type:
 *)
+Print leibniz.
+Print eq_ind_r.
+Print eq_ind.
 Check eq_rect.
 (*
   eq_rect 
@@ -247,7 +249,7 @@ Proof.
    progress.  Perhaps there's a library lemma that already establishes
    the fact that [add] is commutative?  
 *)
-  SearchAbout (?a + ?b = ?b + ?a).
+  SearchAbout (?a + _ = _ + ?a).
 (* The [SearchAbout] command takes a meta-level pattern and tries to
    find any definitions in scope whose type matches that pattern.  
    Here, the [?a] and [?b] are pattern variables which can match
@@ -271,12 +273,13 @@ Proof.
 *)
    rewrite plus_comm.
 (* Did this improve our situation?  Let's unfold [plus] and see: *)
-   unfold plus.  (* yes!  Now the match can reduce and it does.  *)
+   simpl.  (* yes!  Now the match can reduce and it does.  *)
    reflexivity.
 Qed.
 
 (* But how do we prove something like [plus] is commutative or associative?  *)
 Print plus_comm.
+Check plus_assoc.
 Print plus_assoc.
 (* Aha!  They are using a function called [nat_ind]: *)
 Check nat_ind.
@@ -295,6 +298,12 @@ Check nat_ind.
   So let's use [nat_ind] to construct a proof that [plus] is 
   associative.
 *)
+Inductive tree(A:Type) : Type := 
+| Leaf : tree A
+| Node : tree A -> A -> tree A -> tree A.
+Print tree_rect.
+
+
 Lemma plus_associative : forall n m p, n + (m + p) = (n + m) + p.
 Proof.
   apply (nat_ind (fun n => forall m p, n + (m + p) = (n + m) + p)).
@@ -303,6 +312,8 @@ Proof.
     reflexivity.
   intros n IH m p.
   simpl.
+  rename m into m'.
+  rename p into p'.
   rewrite IH.
   reflexivity.
 Qed.
@@ -310,11 +321,11 @@ Qed.
    Actually, there's a tactic that will take care of doing
    the first step for you. It's called (surprise) [induction]:
 *)
-Lemma plus_associative' : forall n m p, n + (m + p) = (n + m) + p.
+Lemma plus_associative' : forall p m n, n + (m + p) = (n + m) + p.
 Proof.
   induction n.
+  simpl.
   auto.
-  intros. 
   simpl.
   rewrite IHn.
   auto.
