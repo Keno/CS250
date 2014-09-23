@@ -9,12 +9,11 @@ Proof.
   reflexivity.
 Qed.
 
-Lemma exist2 : forall n m, (exists x, n + x = m) -> n <= m.
+Lemma exist2 : forall (n m:nat), (exists x, n + x = m) -> n <= m.
 Proof.
   destruct 1.
   crush.
 Qed.
-
 
 Inductive isZero : nat -> Prop :=
 | IsZero : isZero 0.
@@ -31,7 +30,6 @@ Qed.
 
 Lemma isZero_contra : isZero 1 -> False.
 Proof.
-  (* destruct 1. *)
   inversion 1.
 Qed.
 
@@ -43,27 +41,31 @@ Theorem even_0 : even 0.
   constructor.
 Qed.
 
-Theorem even_4 : even 4.
-  constructor ; constructor ; constructor.
+Definition even_4 : even 4.
+  repeat constructor.
 Qed.
+Print even_4.
 
-Hint Constructors even.
+(*Hint Constructors even.
 
 Theorem even_4' : even 4.
   auto.
 Qed.
 
+*)
 Theorem even_1_contra : even 1 -> False.
   intro H.
   inversion H.
 Qed.
+Print even_1_contra.
 
 Theorem even_3_contr : even 3 -> False.
   intro H.
   inversion H.
-  apply (even_1_contra H1).
+  inversion H1.
 Qed.
 
+Hint Constructors even.
 Theorem even_plus : forall n m, even n -> even m -> even (n + m).
 Proof.
   induction 1 ; crush.
@@ -86,3 +88,4 @@ Proof.
   apply (IHeven _ H0).
 Qed.
 
+Print even_contra.

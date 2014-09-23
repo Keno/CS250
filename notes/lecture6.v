@@ -29,8 +29,17 @@ Inductive com : Type :=
 Definition state := var -> nat.
 
 Definition get (x:var) (s:state) : nat := s x.
+
+Inductive foo : Type := 
+| Red : nat -> foo
+| Green : bool -> foo.
+
 Definition set (x:var) (n:nat) (s:state) : state := 
-  fun y => if string_dec x y then n else get y s.
+  fun y => 
+    match string_dec x y with 
+        | left H => n 
+        | right H' => get y s
+    end.
 
 Definition eval_binop (b:binop) : nat -> nat -> nat := 
   match b with 
@@ -84,62 +93,106 @@ Definition prog1 :=
               (Seq (Assign "y" (Binop (Var "y") Times (Const 2)))
                    (Assign "x" (Binop (Var "x") Minus (Const 1)))))).
 
+Definition prog2 := While Tt Skip.
+
+Lemma prog2_div : forall s1 s2, eval_com prog2 s1 s2 -> False.
+
+  Lemma prog2_div' : forall c s1 s2, eval_com c s1 s2 -> c = prog2 -> False.
+  Proof.
+    unfold prog2 ; induction 1 ; crush.
+  Qed.
+
+  intros. apply (prog2_div' _ _ _ H eq_refl).
+Qed.
+
 Theorem prog1_prop : forall s1 s2, eval_com prog1 s1 s2 -> get "x" s2 = 0.
 Proof.
   intros.
   unfold prog1 in H.
-  inversion H. clear H ; subst.
-  inversion H2. clear H2 ; subst.
-  inversion H5 ; clear H5 ; subst.
-  inversion H1 ; clear H1 ; subst.
-  inversion H4 ; clear H4 ; subst.
-  assert False.
-  simpl in *. unfold get, set in * ; simpl in *.
-  crush.
-  contradiction.
-  clear H1.
-  inversion H2 ; clear H2 ; subst.
-  inversion H5 ; clear H5 ; subst.
-  inversion H1 ; clear H1 ; subst. simpl in *.
-  inversion H6 ; clear H6 ; subst.
-  assert False.
-  simpl in *. unfold get, set in * ; simpl in *. crush.
-  contradiction.
-  clear H1.
-  inversion H2 ; clear H2 ; subst.
-  inversion H6 ; clear H6 ; subst.
-  inversion H1 ; clear H1 ; subst.
-  simpl in *.
-  inversion H5 ; clear H5 ; subst.
-  simpl in *. unfold get, set in * ; simpl in *. crush.
-  clear H1.
-  inversion H2 ; clear H2 ; subst.
-  inversion H5 ; clear H5 ; subst.
-  inversion H1 ; clear H1 ; subst. simpl in *.
-  inversion H6 ; clear H6 ; subst. 
-  unfold get, set. simpl. 
-  reflexivity.
-  clear H2 H5. assert False. simpl in *.
-  unfold get, set in H1. simpl in H1. crush.
-  contradiction.
-Qed.
-
-Definition prog2 := While Tt Skip.
-
-Theorem prog2_div : forall c s1 s2, eval_com c s1 s2 -> c = prog2 -> False.
-Proof.
-  unfold prog2 ; induction 1 ; crush.
-Qed.
+  Admitted.
 
 Theorem seq_assoc : 
-  forall c s1 s2, 
-    eval_com c s1 s2 -> 
-    forall c1 c2 c3,
-      c = Seq (Seq c1 c2) c3 -> 
-      eval_com (Seq c1 (Seq c2 c3)) s1 s2.
-Proof.
-  Hint Constructors eval_com.
-  induction 1 ; crush.
-  inversion H ; clear H ; subst ; 
-  econstructor ; eauto.
+  forall c1 c2 c3 s1 s2, 
+    eval_com (Seq (Seq c1 c2) c3) s1 s2 -> 
+    eval_com (Seq c1 (Seq c2 c3)) s1 s2.
+  Lemma seq_assoc' : 
+    forall c s1 s2, 
+      eval_com c s1 s2 -> 
+      forall c1 c2 c3,
+        c = Seq (Seq c1 c2) c3 -> 
+        eval_com (Seq c1 (Seq c2 c3)) s1 s2.
+  Proof.
+    Hint Constructors eval_com.
+    induction 1 ; crush.
+    inversion H ; clear H ; subst ; 
+    econstructor ; eauto.
+  Qed.
+
+  intros. eapply seq_assoc' ; eauto.
 Qed.
+
+Fixpoint contains (x:var) (a:aexp) : bool := 
+  match a with 
+    | Const _ => false
+    | Var y => if string_dec x y then true else false
+    | Binop a1 _ a2 => contains x a1 || contains x a2
+  end.
+
+Lemma eval_exp_set : 
+  forall s x n a,
+    contains x a = false -> 
+    eval_aexp a (set x n s) = eval_aexp a s.
+Proof.
+  induction a ; unfold set, get ; simpl ; unfold get ; crush.
+  destruct (string_dec x v) ; crush.
+  destruct (contains x a1) ; crush.
+Qed.  
+
+Ltac inv H := inversion H ; clear H ; subst.
+
+Lemma assign_comm : 
+  forall x ax y ay s1 s2,
+    eval_com (Seq (Assign x ax) (Assign y ay)) s1 s2 -> 
+    contains x ay = false -> 
+    contains y ax = false -> 
+    x <> y -> 
+    forall s3, eval_com (Seq (Assign y ay) (Assign x ax)) s1 s3 -> 
+               forall z, get z s3 = get z s2.
+Proof.
+  intros. 
+  inv H.
+  inv H3.
+  inv H6.
+  inv H5.
+  inv H9.
+  inv H10.
+  repeat unfold set, get.
+  destruct (string_dec x z) ; destruct (string_dec y z) ; try congruence.
+  specialize (eval_exp_set s1 y (eval_aexp ay s1) ax H1).
+  unfold set. crush.
+  specialize (eval_exp_set s1 x (eval_aexp ax s1) ay H0).
+  unfold set. crush.
+Qed.
+
+
+Lemma assign_comm2 : 
+  forall x ax y ay s1 s2,
+    eval_com (Seq (Assign x ax) (Assign y ay)) s1 s2 -> 
+    contains x ay = false -> 
+    contains y ax = false -> 
+    x <> y -> 
+    eval_com (Seq (Assign y ay) (Assign x ax)) s1 s2.
+Proof.
+  intros.
+  remember (set x (eval_aexp ax (set y (eval_aexp ay s1) s1))
+                (set y (eval_aexp ay s1) s1)) as s3.
+  assert (eval_com (Seq (Assign y ay) (Assign x ax)) s1 s3).
+  rewrite Heqs3.
+  eauto.
+  specialize (assign_comm x ax y ay s1 s2 H H0 H1 H2 _ H3).
+  intro.
+  assert (s3 = s2).
+  Focus 2.
+  rewrite <- H5.
+  auto.
+  Admitted.

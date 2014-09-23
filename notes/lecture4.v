@@ -107,13 +107,13 @@ Inductive type : Set := Nat | Bool.
    though it's called "generalized abstract data types" (GADTs) in those
    contexts.  Coq (and type theory) have had them for a long time...
 *)
-Inductive tbinop : type -> type -> type -> Set :=
+Inductive tbinop : type -> type -> type -> Type :=
 | TPlus  : tbinop Nat Nat Nat
 | TTimes : tbinop Nat Nat Nat
 | TEq    : forall t, tbinop t t Bool
 | TLt    : tbinop Nat Nat Bool.
 
-Inductive texp : type -> Set :=
+Inductive texp : type -> Type :=
 | TNConst : nat -> texp Nat
 | TBConst : bool -> texp Bool
 | TBinop : forall (t1 t2 t:type), tbinop t1 t2 t -> texp t1 -> 
@@ -123,7 +123,7 @@ Inductive texp : type -> Set :=
    types, [Nat] and [Bool], to actual Coq types.  This is not something
    you can write in Ocaml or Coq.
 *)
-Definition typeDenote (t : type) : Set :=
+Definition typeDenote (t : type) : Type :=
   match t with
     | Nat => nat
     | Bool => bool
@@ -160,7 +160,7 @@ Fixpoint texpDenote (t:type) (e : texp t) : typeDenote t :=
 
 Definition tstack := list type.
 
-Inductive tinstr : tstack -> tstack -> Set :=
+Inductive tinstr : tstack -> tstack -> Type :=
 | TiNConst : forall s, nat -> tinstr s (Nat :: s)
 | TiBConst : forall s, bool -> tinstr s (Bool :: s)
 | TiBinop : forall arg1 arg2 res s,
@@ -168,17 +168,17 @@ Inductive tinstr : tstack -> tstack -> Set :=
   -> tinstr (arg1 :: arg2 :: s) (res :: s).
 
 
-Inductive tprog : tstack -> tstack -> Set :=
+Inductive tprog : tstack -> tstack -> Type :=
 | TNil : forall s, tprog s s
 | TCons : forall s1 s2 s3,
   tinstr s1 s2
   -> tprog s2 s3
   -> tprog s1 s3.
 
-Fixpoint vstack (ts : tstack) : Set :=
+Fixpoint vstack (ts : tstack) : Type :=
   match ts with
     | nil => unit
-    | t :: ts' => typeDenote t * vstack ts'
+    | t :: ts' => (typeDenote t) * (vstack ts')
   end%type.
 
 Definition tinstrDenote ts ts' (i : tinstr ts ts') : vstack ts -> vstack ts' :=
@@ -239,10 +239,10 @@ Hint Rewrite tcompile_correct'.
 
 Theorem tcompile_correct : forall t (e : texp t),
   tprogDenote (tcompile e nil) tt = (texpDenote e, tt).
-Proof.
   crush.
 Qed.
 
+Print tcompile_correct'.
 (* [Extraction] and [Recursive Extraction] allow us to extract OCaml
    code from a Coq development.  We can also extract Haskell or Scheme.
    Look carefully at the extracted code and compare with the Coq
