@@ -131,3 +131,109 @@ Inductive eval_com : com -> state -> state -> Prop :=
    extensionally equivalent to s2.  
 *)
     
+
+
+(* Hints:
+
+   * You *will* get stuck doing this assignment.  It is hard.
+     Don't hesitate to ask questions on Piazza or in class, 
+     or collaborate with friends to solve this.  
+     
+   * When proving ieval_com is equivalent to eval_com, you will
+     find the following lemma very useful:
+
+     ieval_plus : forall n c s1 s2, 
+       ieval_com n c s1 = Some s2 -> 
+         forall m, ieval_com (n + m) c s1 = Some s2
+
+    This says that if it takes n steps to get an answer out,
+    then if you run for more than n steps, you still get the
+    same answer out.
+
+   * Write a simple optimizer first, and prove that correct.
+     Don't try to write a complicated optimizer first.  It's
+     easier to "grow" your development incrementally.  
+
+  * You will find the following tactic very useful:
+
+       remember(<exp>) as <id>
+
+    Consider a proof state like this:
+
+        H : P (foo + bar + baz)
+        -----------------------------------------
+        match foo + bar + baz with 
+          | 0 => blah
+          | S n => blahblah
+        end
+
+    Executing the tactic
+
+        remember (foo + bar + baz) as x
+
+    will leave you in the state:
+
+        x : nat
+        Hxeq : x = foo + bar + baz
+        H : P x
+        -----------------------------------------
+        match x with 
+          | 0 => blah
+          | S n => blahblah
+        end
+
+    So "remember" just helps you name a sub-expression in 
+    a proof, and replace all occurrences of that sub-expression
+    with that name.  You can always undo the substitution by
+    rewriting by the Hxeq equation.
+
+  * There are many useful arithmetic facts in the libraries
+    (e.g., plus_0_r, NPeano.Nat.sub_0_r, mult_comm, etc.) 
+    Don't forget to use "SearchAbout" to find them.
+
+  * If you [Require Import Omega.] then you can use the "omega"
+    tactic to solve some arithmetic questions.  
+
+  * You will want to define a comparison operation for arithmetic
+    expressions.  The natural thing to write is something like:
+
+       eq_aexp : aexp -> aexp -> bool
+
+    but you will then need to prove that this is actually correct
+    i.e., (eq_aexp a1 a2 = true) <-> (a1 = a2).
+
+    An alternative is to define something like:
+
+      eq_aexp_dec : forall (a1 a2:aexp), {a1 = a2} + {a1<>a2}.
+
+    and instead of trying to build it using explicit code, use
+    the "decide quality" tactic (two words.)  For instance:
+
+    Definition eq_aexp_dec (a1 a2:aexp) : {a1=a2} + {a1<>a2}.
+      decide quality.
+      apply (eq_nat_dec n n0).
+      apply (string_dec v v0).
+      decide equality.
+    Defined.
+
+    This tactic will take an inductive definition and try to
+    build the decidable equality term for you.  In the example
+    above, I had to tell it how to decide quality for some of
+    the types used within the definition (nats, strings, and
+    binops.)  
+
+  * You may also find the tactic:
+
+       replace (<exp1>) with (<exp2>) 
+
+    useful.  As suggested, it lets you replace occurrences of 
+    one expression with another.  It leaves you with two goals:
+    The first is the original goal with the substitution performed.
+    The second is a requirement to prove <exp1> = <exp2>. 
+
+  * My solution for this whole file (not including these comments)
+    is about 400 lines of code.  Yours will be much, much bigger
+    unless you use a lot of automation.  
+
+*)
+    
