@@ -1,3 +1,5 @@
+Add LoadPath "/Users/kfischer/Documents/CS250/cpdtlib".
+
 Require Import Bool Arith String List CpdtTactics.
 Require Import FunctionalExtensionality.
 Open Scope string_scope.
@@ -33,8 +35,6 @@ Definition get (x:var) (s:state) : nat := s x.
 
 Definition set (x:var) (n:nat) (s:state) : state := 
   fun y => if string_dec x y then n else get y s.
-
-Check string_dec.
 
 Definition eval_binop (b:binop) : nat -> nat -> nat := 
   match b with 
@@ -89,11 +89,150 @@ Inductive eval_com : com -> state -> state -> Prop :=
    terminate in that time, you should return None.  
 *)
 
+Fixpoint ieval_com (n:nat) (c:com) (s:state) : option state :=
+match n with 
+| O => None
+| S m => match c with
+    | Skip => Some s
+    | Assign x e => Some (set x (eval_aexp e s) s)
+    | Seq c1 c2 => match (ieval_com m c1 s) with
+      | Some s' => (ieval_com m c2 s')
+      | None => None
+    end
+    | If b c1 c2 => if (eval_bexp b s) then 
+      (ieval_com m c1 s) 
+      else (ieval_com m c2 s)
+    | While b c1 => if (eval_bexp b s) then
+      (ieval_com m (Seq c1 c) s)
+      else Some s
+    end
+end.
+
+
 (* Prove that :
 
    eval_com c s1 s2 -> exists n, ieval_com n c s1 = Some s2.
 
 *)
+
+Lemma terminates : forall n c s1 s2, ieval_com n c s1 = Some s2 -> n<>0. crush. Qed.
+Lemma neq : forall n, n<>0 <-> exists m, n = S m.
+crush. destruct n. crush. exists n. reflexivity. Qed.
+
+Ltac aterm H := let id:=fresh in assert (id := H); apply terminates in id.
+
+Lemma ieval_seq : forall n c1 c2 s1 s2 s3,
+       ieval_com n c1 s1 = Some s3 -> ieval_com n c2 s3 = Some s2 -> ieval_com (S n) (Seq c1 c2) s1 = Some s2.
+  intros. crush.
+Qed.
+
+Lemma ieval_iseq : forall n c1 c2 s1 s2 s3,
+       ieval_com (S n) (Seq c1 c2) s1 = Some s3 -> ieval_com n c1 s1 = Some s2 -> ieval_com n c2 s2 = Some s3.
+  intros. rewrite <- H. crush.
+Qed.
+
+Lemma seq_term : forall n c1 c2 s1 s2, ieval_com (S n) (Seq c1 c2) s1 = Some s2 ->
+         exists s', ieval_com n c1 s1 = Some s'.
+  crush.
+  remember (ieval_com n c1 s1) as x.
+  destruct x.
+  crush.
+  exists s.
+  rewrite Heqx. reflexivity.
+  contradict H. crush.
+Qed.
+
+Hint Resolve ieval_seq.
+
+Check NPeano.Nat.add_succ_r.
+Lemma ieval_plus : forall n c s1 s2, 
+       ieval_com n c s1 = Some s2 -> 
+         forall m, ieval_com (n + m) c s1 = Some s2.
+intros.
+Lemma ieval_plus' : forall n c s1 s2, 
+       ieval_com n c s1 = Some s2 -> ieval_com (n + 1) c s1 = Some s2.
+intro n.
+induction n.
+intros. crush.
+intros.
+rewrite plus_comm. rewrite NPeano.Nat.add_succ_r. simpl plus.
+remember (S n) as m.
+unfold ieval_com. fold ieval_com.
+destruct c.
+crush.
+crush.
+(* Begin SEQ *)
+remember (ieval_com m c1 s1) as x.
+destruct x.
+assert (IHn2 := IHn); specialize IHn2 with (c:=c2) (s1:=s) (s2:=s2); rewrite plus_comm in IHn2.
+rewrite Heqm in *.
+apply IHn2; clear IHn2.
+apply ieval_iseq with (c1:=c1) (s1:=s1).
+rewrite H. reflexivity.
+apply seq_term in H.
+destruct H.
+specialize IHn with (c := c1) (s1:=s1) (s2:=x). rewrite plus_comm in IHn.
+crush.
+rewrite Heqm in *. apply seq_term in H. destruct H.
+specialize IHn with (c := c1) (s1:=s1) (s2:=x). rewrite plus_comm in IHn.
+apply IHn in H. contradict H. crush.
+(* End SEQ *)
+
+ contradict H.
+remember (ieval_com m c1 s1) as y. rewrite <- Heqy.
+
+simpl in Heqx.
+
+assert (H2:=H).
+apply IHn in H.
+apply
+assert (x = s).
+ 
+assert (Some s = ieval_com n c1 s1).
+assert (IHn2 := IHn); specialize IHn2 with (c:=c1) (s1:=s1) (s2:=s); rewrite plus_comm in IHn2.
+rewrite Heqm.
+apply IHn2; clear IHn2.
+
+assert (exists s', ieval_com m c1 s1 = Some s'). apply seq_term with (c2:=c2) (s2:=s2).
+
+specialize IHn with (c:=c1) (s1:=s1) (s2:=s2).
+rewrite plus_comm in IHn. rewrite Heqm.
+rewrite <- IHn. 
+
+assert (n+1 = S n). rewrite plus_comm; simpl; reflexivity. rewrite H1; clear H1.
+
+
+aterm H.
+Show.
+assert (n+1 = S n). rewrite plus_comm; simpl; reflexivity. rewrite H1; clear H1.
+apply neq in H0.
+destruct H0.
+rewrite H0.
+rewrite H0 in H; clear H0.
+induction x.
+destruct c.
+crush.
+crush.
+crush.
+simpl in H.
+remember (eval_bexp b s1) as x in H.
+destruct x; contradict H; crush.
+simpl in H.
+remember (eval_bexp b s1) as x in H.
+destruct x.
+contradict H. crush.
+crush.
+rewrite <- Heqx.
+reflexivity.
+(* End base case *)
+Show.
+simpl ieval_com in H at 1.
+
+
+intro m in H0.
+assert ( n = S m); 
+remember (n+1) as x. unfold H0.
+
 
 (* Prove that : 
 
