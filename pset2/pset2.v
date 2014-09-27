@@ -82,6 +82,8 @@ Inductive eval_com : com -> state -> state -> Prop :=
                       eval_com (While b c) s2 s3 -> 
                       eval_com (While b c) s1 s3.
 
+Hint Constructors eval_com.
+
 (* Write a function ieval_com : nat -> com -> state -> option state
    which takes "fuel" as an argument and tries to run the command
    for fuel-number of steps.  If the command terminates in that time,
@@ -119,7 +121,9 @@ Lemma terminates : forall n c s1 s2, ieval_com n c s1 = Some s2 -> n<>0. crush. 
 Lemma neq : forall n, n<>0 <-> exists m, n = S m.
 crush. destruct n. crush. exists n. reflexivity. Qed.
 
-Ltac aterm H := let id:=fresh in assert (id := H); apply terminates in id.
+Ltac _aterm H id := assert (id := H); apply terminates in id.
+Ltac aterm H := let id:=fresh in _aterm H id.
+Ltac aterm2 H := let id:=fresh in _aterm H id; apply neq in id; destruct id; rewrite id in *.
 
 Lemma ieval_seq : forall n c1 c2 s1 s2 s3,
        ieval_com n c1 s1 = Some s3 -> ieval_com n c2 s3 = Some s2 -> ieval_com (S n) (Seq c1 c2) s1 = Some s2.
@@ -177,61 +181,56 @@ rewrite Heqm in *. apply seq_term in H. destruct H.
 specialize IHn with (c := c1) (s1:=s1) (s2:=x). rewrite plus_comm in IHn.
 apply IHn in H. contradict H. crush.
 (* End SEQ *)
-
- contradict H.
-remember (ieval_com m c1 s1) as y. rewrite <- Heqy.
-
-simpl in Heqx.
-
-assert (H2:=H).
-apply IHn in H.
-apply
-assert (x = s).
- 
-assert (Some s = ieval_com n c1 s1).
-assert (IHn2 := IHn); specialize IHn2 with (c:=c1) (s1:=s1) (s2:=s); rewrite plus_comm in IHn2.
-rewrite Heqm.
-apply IHn2; clear IHn2.
-
-assert (exists s', ieval_com m c1 s1 = Some s'). apply seq_term with (c2:=c2) (s2:=s2).
-
-specialize IHn with (c:=c1) (s1:=s1) (s2:=s2).
-rewrite plus_comm in IHn. rewrite Heqm.
-rewrite <- IHn. 
-
-assert (n+1 = S n). rewrite plus_comm; simpl; reflexivity. rewrite H1; clear H1.
-
-
-aterm H.
-Show.
-assert (n+1 = S n). rewrite plus_comm; simpl; reflexivity. rewrite H1; clear H1.
-apply neq in H0.
-destruct H0.
+remember (eval_bexp b s1) as cond.
+rewrite Heqm in *.
+destruct cond.
+specialize IHn with (c := c1) (s1:=s1) (s2:=s2). rewrite plus_comm in IHn. apply IHn. rewrite <- H. simpl. rewrite <- Heqcond. reflexivity.
+specialize IHn with (c := c2) (s1:=s1) (s2:=s2). rewrite plus_comm in IHn. apply IHn. rewrite <- H. simpl. rewrite <- Heqcond. reflexivity.
+(* END IF *)
+remember (eval_bexp b s1) as cond.
+rewrite Heqm in *.
+destruct cond.
+remember ((Seq c (While b c))) as c2.
+specialize IHn with (c := c2) (s1:=s1) (s2:=s2). rewrite plus_comm in IHn. apply IHn.
+rewrite <- H. simpl. rewrite <- Heqcond. rewrite <- Heqc2. reflexivity.
+rewrite <- H. simpl. rewrite <- Heqcond. reflexivity.
+Qed.
+induction m.
+rewrite plus_comm; simpl; rewrite H; reflexivity.
+assert ( n + S m = ((n + m) + 1) ). crush.
 rewrite H0.
-rewrite H0 in H; clear H0.
-induction x.
-destruct c.
-crush.
-crush.
-crush.
-simpl in H.
-remember (eval_bexp b s1) as x in H.
-destruct x; contradict H; crush.
-simpl in H.
-remember (eval_bexp b s1) as x in H.
-destruct x.
-contradict H. crush.
-crush.
-rewrite <- Heqx.
-reflexivity.
-(* End base case *)
-Show.
-simpl ieval_com in H at 1.
+apply ieval_plus'.
+assumption.
+Qed.
 
+Lemma EvalCom1 : forall c s1 s2, eval_com c s1 s2 -> exists n, ieval_com n c s1 = Some s2.
+intros.
+induction H.
+exists 1. crush.
+exists 1. crush.
 
-intro m in H0.
-assert ( n = S m); 
-remember (n+1) as x. unfold H0.
+(* TODO: Make this  a tactic *)
+destruct IHeval_com1; destruct IHeval_com2; aterm H1; aterm H2.
+assert (x+x0 <> 0). omega.
+apply neq in H5; destruct H5; exists (S (S x1)). rewrite <- H5. simpl.
+apply ieval_plus with (n:=x) (m:=x0) in H1. rewrite H1.
+apply ieval_plus with (n:=x0) (m:=x) in H2. rewrite <- H2.
+assert (x0 + x = x + x0). apply plus_comm. rewrite H6. reflexivity.
+
+destruct IHeval_com; exists (S x); simpl; rewrite H; rewrite H1; reflexivity.
+destruct IHeval_com; exists (S x); simpl; rewrite H; rewrite H1; reflexivity.
+
+exists 1; simpl; rewrite H; reflexivity.
+
+(* Basically the same as above *)
+destruct IHeval_com1 as [x IH1]; destruct IHeval_com2 as [x0 IH2];
+aterm IH1; aterm IH2; assert (x+x0 <> 0) as IS; [ omega | ];
+apply neq in IS; destruct IS as [x1 Hyp]; exists (S (S (S x1))); remember (S (S x1)) as y;
+simpl; rewrite H; rewrite Heqy; rewrite <- Hyp; simpl;
+apply ieval_plus with (n:=x) (m:=x0) in IH1; rewrite IH1;
+apply ieval_plus with (n:=x0) (m:=x) in IH2; rewrite <- IH2;
+assert (x0 + x = x + x0) as Hcomm; [ apply plus_comm | ]; rewrite Hcomm; reflexivity.
+Qed.
 
 
 (* Prove that : 
@@ -239,6 +238,66 @@ remember (n+1) as x. unfold H0.
    ieval_com n c s1 = Some s2 -> eval_com c s1 s2
 
 *)
+
+Lemma EvalCom2 : forall n c s1 s2, ieval_com n c s1 = Some s2 -> eval_com c s1 s2.
+Lemma EvalCom2' : forall n c s1 s2, ieval_com (S n) c s1 = Some s2 -> eval_com c s1 s2.
+intro n. induction n.
+intros. destruct c; crush.
+remember (eval_bexp b s1) as x; destruct x; crush.
+remember (eval_bexp b s1) as x; destruct x; crush.
+intros.
+destruct c.
+crush.
+crush.
+remember (S n) as x in H.
+simpl ieval_com in H.
+remember (ieval_com x c1 s1) as y.
+destruct y. rewrite Heqx in H.
+assert (IHn2:=IHn).
+specialize IHn with (c:=c2) (s1:=s) (s2:=s2).
+specialize IHn2 with (c:=c1) (s1:=s1) (s2:=s).
+rewrite Heqx in Heqy.
+apply IHn in H.
+apply eq_sym in Heqy.
+apply IHn2 in Heqy.
+apply (Eval_seq c1 s1 s c2 s2); assumption.
+contradict H. crush.
+remember (S n) as x.
+simpl ieval_com in H.
+remember (eval_bexp b s1) as cond; destruct cond; simpl.
+specialize IHn with (c:=c1) (s1:=s1) (s2:=s2). apply IHn in H.
+apply (Eval_if_true b c1 c2 s1 s2); auto.
+specialize IHn with (c:=c2) (s1:=s1) (s2:=s2). apply IHn in H.
+apply (Eval_if_false b c1 c2 s1 s2); auto.
+remember (S n) as x.
+simpl ieval_com in H.
+remember (eval_bexp b s1) as cond; destruct cond; simpl.
+aterm H. apply neq in H0. destruct H0.
+rewrite H0 in H.
+simpl ieval_com in H.
+remember (ieval_com x0 c s1) as z.
+destruct z.
+apply eq_sym in Heqz.
+apply ieval_plus with (n:= x0) (m:=1) in Heqz.
+rewrite plus_comm in Heqz. simpl plus in Heqz. rewrite <- H0 in Heqz.
+assert (IHn2 := IHn).
+specialize IHn with (c:=c) (s1:=s1) (s2:=s). apply IHn in Heqz.
+apply (Eval_while_true b c s1 s s2).
+auto.
+auto.
+apply ieval_plus with (n:= x0) (m:=1) in H.
+rewrite plus_comm in H. simpl plus in H. rewrite <- H0 in H.
+specialize IHn2 with (c:=(While b c)) (s1:=s) (s2:=s2); apply IHn2 in H; assumption.
+crush.
+injection H.
+intros.
+crush.
+Qed.
+Show.
+intros.
+aterm H. apply neq in H0; destruct H0.
+rewrite H0 in H. apply EvalCom2' in H. assumption.
+Qed.
 
 (* Write a function
 
@@ -263,6 +322,241 @@ remember (n+1) as x. unfold H0.
    * replace (if Ff c1 else c2) with c2
 *)
 
+(*
+This is a better optimizer, but it's hard to proof
+
+Fixpoint optimize_com' (c:com) : option com :=
+  match c with
+      | Skip => None
+      | Seq c1 c2 => match (optimize_com' c1, optimize_com' c2) with
+        | (Some c1', Some c2') => Some (Seq c1' c2')
+        | (Some c1', None) => Some c1'
+        | (None, Some c2') => Some c2'
+        | (None, None) => None
+      end
+      | _ => Some c   
+end. 
+
+Definition optimize_com (c:com) : com :=
+  match (optimize_com' c) with
+      | Some c' => c'
+      | None => Skip
+  end.
+*)
+
+Fixpoint optimize_binop (b: binop) (x: aexp) (y: aexp) : aexp :=
+  match b with
+    | Times => match (x,y) with
+      | (Const 1, Const 1) => Const 1
+      | (Const 1, Const 0) => Const 0
+      | (Const 0, Const 1) => Const 0
+      | (Const 0, Const 0) => Const 0
+      | (Const 1, b) => b
+      | (a, Const 1) => a
+      | (Const 0, b) => Const 0
+      | (a, Const 0) => Const 0
+      | (a,b) => (Binop a Times b)
+    end
+    | Plus => match (x,y) with
+      | (Const 0, Const 0) => Const 0
+      | (a, Const 0) => a
+      | (Const 0, b) => b
+      | (a,b) => (Binop a Plus b)
+    end
+    | Minus => match (x,y) with
+      | (a, Const 0) => a
+      | (a,b) => (Binop a Minus b)
+    end
+  end.                                       
+
+Lemma binop_opt_correct : forall b x y s, eval_aexp (Binop x b y) s = eval_aexp (optimize_binop b x y) s.
+intros.
+destruct b.
+simpl optimize_binop.
+destruct x; try destruct n; destruct y; try destruct n; auto; simpl; try omega.
+destruct n0; simpl; omega.
+destruct n0; simpl; omega.
+simpl optimize_binop.
+destruct x; try destruct n; destruct y; try destruct n; auto; simpl; try omega.
+destruct n; simpl; omega.
+destruct n0; simpl. omega.
+destruct n0. simpl. omega.
+destruct n0; simpl; omega.
+destruct n0; simpl. omega.
+destruct n0; simpl. omega.
+reflexivity.
+destruct n. simpl. omega.
+destruct n; simpl; omega.
+destruct n; simpl; omega.
+simpl optimize_binop.
+destruct y. destruct n; simpl; omega.
+destruct x; simpl; omega.
+reflexivity.
+Qed.
+ 
+Fixpoint optimize_aexp (a: aexp) : aexp :=
+  match a with
+    | Binop x b y => optimize_binop b (optimize_aexp x) (optimize_aexp y)
+    | _ => a
+  end.
+
+Lemma aexpopt_correct : forall a s, eval_aexp a s = eval_aexp (optimize_aexp a) s.
+  intros.
+  induction a; crush.
+  apply binop_opt_correct.
+Qed.
+
+Definition eq_aexp_dec (a1 a2:aexp) : {a1=a2} + {a1<>a2}.
+      decide equality.
+      apply (eq_nat_dec n n0).
+      apply (string_dec v v0).
+      decide equality.
+    Defined.
+
+Fixpoint optimize_bexp (b: bexp) : bexp :=
+  match b with
+   | Eq aa ab => match eq_aexp_dec (optimize_aexp aa) (optimize_aexp ab) with
+      | left P => Tt
+      | right p => Eq aa ab
+   end
+   | Lt aa ab => match eq_aexp_dec aa ab with
+      | left P => Ff
+      | right p => Lt aa ab 
+   end
+   | Not x => match (optimize_bexp x) with
+      | Tt => Ff
+      | Ff => Tt
+      | x => Not x
+   end
+   | Or x y => match (optimize_bexp x, optimize_bexp y) with
+      | (Tt, _) | (_, Tt) => Tt
+      | (Ff, a) | (a, Ff) => a
+      | (a,b) => Or a b
+     end
+   | And x y => match (optimize_bexp x, optimize_bexp y) with
+      | (Tt, a) | (a, Tt) => a
+      | (Ff, _) | (_, Ff) => Ff
+      | (a,b) => And a b
+     end
+    | _ => b
+  end.
+
+(* These are probably in the library somewhere but I couldn't find them *)
+Lemma eqb_true : forall x, NPeano.Nat.eqb x x = true.
+induction x; crush.
+Qed.
+
+Lemma ltb_false : forall x, NPeano.Nat.ltb x x = false.
+induction x; crush.
+Qed.
+
+Lemma bexp_opt_correct : forall b s, eval_bexp b s = eval_bexp (optimize_bexp b) s.
+intros.
+induction b; crush.
+remember (eq_aexp_dec (optimize_aexp a) (optimize_aexp a0)) as cond.
+destruct cond.
+rewrite aexpopt_correct at 1; rewrite e; rewrite <- aexpopt_correct at 1.
+remember (eval_aexp a0 s) as x. apply eqb_true.
+simpl. reflexivity.
+remember (eq_aexp_dec a a0) as cond.
+destruct cond.
+rewrite aexpopt_correct at 1; rewrite e; rewrite <- aexpopt_correct at 1.
+remember (eval_aexp a0 s) as x. apply ltb_false.
+simpl. reflexivity.
+remember (optimize_bexp b1) as bb1.
+remember (optimize_bexp b2) as bb2.
+destruct bb1; solve[ simpl; reflexivity | destruct bb2; simpl; solve [ crush | rewrite andb_true_r; reflexivity | rewrite andb_false_r; reflexivity ] ].
+remember (optimize_bexp b1) as bb1.
+remember (optimize_bexp b2) as bb2.
+destruct bb1; solve[ simpl; reflexivity | destruct bb2; simpl; solve [ crush | rewrite andb_true_r; reflexivity | rewrite andb_false_r; reflexivity ] ].
+remember (optimize_bexp b) as bb.
+destruct bb; crush.
+Qed.
+
+Fixpoint optimize_com (c:com) : com :=
+  match c with
+      | Seq c1 c2 => match (c1, c2) with
+        | (Skip, Skip) => Skip
+        | (Skip, c2') => optimize_com c2'
+        | (c1', Skip) => optimize_com c1'
+        | (c1', c2') => (Seq (optimize_com c1') (optimize_com c2'))
+      end
+      | Assign v a => Assign v (optimize_aexp a)
+      | If bb c1 c2 => match (optimize_bexp bb) with
+         | Tt => optimize_com c1
+         | Ff => optimize_com c2
+         | b => If b (optimize_com c1) (optimize_com c2)
+      end
+      | _ => c
+  end.
+
+Lemma Skips : forall x c1 c2 s1 s2, c1 <> Skip -> c2 <> Skip -> ieval_com (S x) (Seq (optimize_com c1) (optimize_com c2)) s1 = Some s2 -> ieval_com (S x) (optimize_com (Seq c1 c2)) s1 = Some s2.
+intros.
+Lemma Skips' : forall c1 c2, c1 <> Skip -> c2 <> Skip -> Seq (optimize_com c1) (optimize_com c2) = (optimize_com (Seq c1 c2)).
+intros.
+unfold optimize_com at 3. fold optimize_com. destruct c1; destruct c2; crush.
+Qed.
+rewrite Skips' in H1; assumption.
+Qed.
+
+Ltac raise H x :=  apply ieval_plus with (n := x) (m := 1) in H; rewrite plus_comm in H; simpl plus in H.
+
+Lemma Skip1 : forall x c1 c2 s1 s2, c1 = Skip -> c2 <> Skip -> ieval_com (S (S x)) (Seq (optimize_com c1) (optimize_com c2)) s1 = Some s2 -> ieval_com (S (S x)) (optimize_com (Seq c1 c2)) s1 = Some s2.
+intros. 
+Lemma Skip1': forall c1 c2, c1 = Skip -> c2 <> Skip -> (optimize_com c2) = (optimize_com (Seq c1 c2)).
+unfold optimize_com at 2. fold optimize_com. destruct c1; destruct c2; crush.
+Qed.
+Show.
+rewrite H in H1. remember (S x) as y. simpl in H1.
+rewrite Heqy in H1. simpl ieval_com at 1 in H1.
+rewrite <- Skip1' with (c1 := c1). rewrite <- Heqy in H1.
+raise H1 y. assumption.
+assumption. assumption.
+Qed.
+
+Lemma Skip2 : forall x c1 c2 s1 s2, c1 <> Skip -> c2 = Skip -> ieval_com (S (S x)) (Seq (optimize_com c1) (optimize_com c2)) s1 = Some s2 -> ieval_com (S (S x)) (optimize_com (Seq c1 c2)) s1 = Some s2.
+intros. 
+Lemma Skip2': forall c1 c2, c1 <> Skip -> c2 = Skip -> (optimize_com c1) = (optimize_com (Seq c1 c2)).
+unfold optimize_com at 2. fold optimize_com. destruct c1; destruct c2; crush.
+Qed.
+Show.
+rewrite H0 in H1. remember (S x) as y. simpl in H1. simpl ieval_com at 1 in H1.
+rewrite <- Skip2' with (c1 := c1). 
+rewrite Heqy in H1. simpl ieval_com at 2 in H1. rewrite <- Heqy in H1. simpl in H1.
+remember (ieval_com y (optimize_com c1) s1) as cond.
+destruct cond.
+rewrite <- H1.
+apply eq_sym in Heqcond.
+raise Heqcond y.
+rewrite Heqcond. reflexivity.
+contradict H1. crush.
+assumption. assumption.
+Qed.
+
+Lemma NoSkips : forall x c1 c2 s1 s2, ieval_com (S (S x)) (Seq (optimize_com c1) (optimize_com c2)) s1 = Some s2 -> ieval_com (S (S x)) (optimize_com (Seq c1 c2)) s1 = Some s2.
+intros.
+destruct c1.
+destruct c2; [ crush | | | |]; apply Skip1; crush.
+destruct c2; [ crush | | | |]; apply Skips; crush.
+destruct c2; [ apply Skip2; crush | | | |]; apply Skips; crush.
+destruct c2; [ apply Skip2; crush | | | |]; apply Skips; crush.
+destruct c2; [ apply Skip2; crush | | | |]; apply Skips; crush.
+Qed.
+
+Lemma opt_seq_comp: forall x c1 c2 s1 s s2, ieval_com x (optimize_com c1) s1 = Some s -> ieval_com x (optimize_com c2) s = Some s2 -> ieval_com (S x) (optimize_com (Seq c1 c2)) s1 = Some s2.
+intros.
+assert ((ieval_com (S x) (Seq (optimize_com c1) (optimize_com c2)) s1) = Some s2). apply ieval_seq with (s3:=s); assumption.
+aterm2 H.
+apply NoSkips. assumption.
+Qed.
+
+Lemma assign_correct: forall x a v s1 s2, ieval_com (S x) (optimize_com (Assign v a)) s1 = Some s2 <-> ieval_com (S x) (Assign v a) s1 = Some s2.
+intros.
+simpl ieval_com.
+intros.
+rewrite <- aexpopt_correct. crush.
+Qed.
+
 (* Construct a proof that optimizing a program doesn't change its
    input/output behavior.  That is, show that if we start in state
    s1 and evaluate c to get state s2, then if we evaluate 
@@ -270,7 +564,57 @@ remember (n+1) as x. unfold H0.
    extensionally equivalent to s2.  
 *)
     
-
+Lemma optimize_correct : forall c s1 s2, eval_com c s1 s2 -> eval_com (optimize_com c) s1 s2.
+Lemma optimize_correct' : forall x c s1 s2, ieval_com (S x) c s1 = Some s2 -> ieval_com (S x) (optimize_com c) s1 = Some s2. 
+intro x. induction x. crush. destruct c; crush.
+rewrite <- aexpopt_correct. reflexivity.
+remember (eval_bexp b s1) as cc; destruct cc; crush.
+(* END Base case *)
+intros.
+destruct c.
+crush.
+apply assign_correct. assumption.
+aterm2 H.
+assert (H2:=H).
+apply seq_term in H.
+destruct H.
+apply ieval_iseq with (c2:=c2) (s2:=x1) (s3:=s2) in H2.
+injection H0.
+intros.
+rewrite H1 in IHx.
+assert (IHx2 := IHx).
+specialize IHx with (c:=c1) (s1:=s1) (s2:=x1).
+specialize IHx2 with (c:=c2) (s1:=x1) (s2:=s2).
+apply IHx in H. apply IHx2 in H2.
+clear IHx; clear IHx2.
+apply opt_seq_comp with (s:=x1); assumption. assumption.
+(* END Seq *)
+simpl optimize_com.
+remember (S x) as y.
+simpl ieval_com in H.
+remember (eval_bexp b s1) as cond.
+destruct cond.
+specialize IHx with (c:=c1) (s1:=s1) (s2:=s2).
+apply IHx in H.
+remember (optimize_bexp b) as cond'.
+destruct cond'; [ raise H y; assumption |
+contradict Heqcond; rewrite bexp_opt_correct; rewrite <- Heqcond'; simpl; crush | | | | | ];
+rewrite Heqcond'; simpl ieval_com; rewrite <- bexp_opt_correct; rewrite <- Heqcond; assumption.
+remember (optimize_bexp b) as cond'.
+destruct cond'; [ contradict Heqcond; rewrite bexp_opt_correct; rewrite <- Heqcond'; simpl; crush  | specialize IHx with (c:=c2) (s1:=s1) (s2:=s2); apply IHx in H; raise H y; assumption | | | | | ]; rewrite Heqcond'; simpl ieval_com; rewrite <- bexp_opt_correct; rewrite <- Heqcond;
+specialize IHx with (c:=c2) (s1:=s1) (s2:=s2); apply IHx in H; assumption.
+(* END If *)
+crush.
+Qed.
+Show.
+intros.
+apply EvalCom1 in H.
+destruct H.
+apply EvalCom2 with (n:=x).
+aterm2 H.
+apply optimize_correct'.
+assumption.
+Qed.
 
 (* Hints:
 
