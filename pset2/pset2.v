@@ -148,6 +148,14 @@ Qed.
 
 Hint Resolve ieval_seq.
 
+Ltac unroll_ieval_com := 
+  match goal with
+    | [ |- ieval_com (S ?X) _ _ = _ ] => let y:=fresh in let Heqy:=fresh in remember X as y eqn:Heqy; simpl ieval_com; rewrite Heqy
+    | [ H: context[ieval_com (S ?X) _ _] |- _ ] => let y:=fresh in let Heqy:=fresh in remember X as y eqn:Heqy; simpl ieval_com in H; rewrite Heqy in H
+  end.
+
+Ltac cond_simpl c := let cond:=fresh in remember c as cond; destruct cond; simpl.
+
 Check NPeano.Nat.add_succ_r.
 Lemma ieval_plus : forall n c s1 s2, 
        ieval_com n c s1 = Some s2 -> 
@@ -155,52 +163,47 @@ Lemma ieval_plus : forall n c s1 s2,
 intros.
 Lemma ieval_plus' : forall n c s1 s2, 
        ieval_com n c s1 = Some s2 -> ieval_com (n + 1) c s1 = Some s2.
-intro n.
-induction n.
-intros. crush.
-intros.
-rewrite plus_comm. rewrite NPeano.Nat.add_succ_r. simpl plus.
-remember (S n) as m.
-unfold ieval_com. fold ieval_com.
-destruct c.
-crush.
-crush.
-(* Begin SEQ *)
-remember (ieval_com m c1 s1) as x.
-destruct x.
-assert (IHn2 := IHn); specialize IHn2 with (c:=c2) (s1:=s) (s2:=s2); rewrite plus_comm in IHn2.
-rewrite Heqm in *.
-apply IHn2; clear IHn2.
-apply ieval_iseq with (c1:=c1) (s1:=s1).
-rewrite H. reflexivity.
-apply seq_term in H.
-destruct H.
-specialize IHn with (c := c1) (s1:=s1) (s2:=x). rewrite plus_comm in IHn.
-crush.
-rewrite Heqm in *. apply seq_term in H. destruct H.
-specialize IHn with (c := c1) (s1:=s1) (s2:=x). rewrite plus_comm in IHn.
-apply IHn in H. contradict H. crush.
-(* End SEQ *)
-remember (eval_bexp b s1) as cond.
-rewrite Heqm in *.
-destruct cond.
-specialize IHn with (c := c1) (s1:=s1) (s2:=s2). rewrite plus_comm in IHn. apply IHn. rewrite <- H. simpl. rewrite <- Heqcond. reflexivity.
-specialize IHn with (c := c2) (s1:=s1) (s2:=s2). rewrite plus_comm in IHn. apply IHn. rewrite <- H. simpl. rewrite <- Heqcond. reflexivity.
-(* END IF *)
-remember (eval_bexp b s1) as cond.
-rewrite Heqm in *.
-destruct cond.
-remember ((Seq c (While b c))) as c2.
-specialize IHn with (c := c2) (s1:=s1) (s2:=s2). rewrite plus_comm in IHn. apply IHn.
-rewrite <- H. simpl. rewrite <- Heqcond. rewrite <- Heqc2. reflexivity.
-rewrite <- H. simpl. rewrite <- Heqcond. reflexivity.
+  intro n; induction n.
+  (* Base Case *)
+    intros. crush.
+  (* Induction *)
+    intros; rewrite plus_comm in *; rewrite NPeano.Nat.add_succ_r in *; 
+      simpl plus in *.
+    unroll_ieval_com.
+    remember (S n) as m.
+    destruct c. crush. crush.
+    (* Begin SEQ *)
+      cond_simpl (ieval_com m c1 s1). 
+      rewrite Heqm in *; rewrite H1 in *; clear H1.
+      assert (H2 := H). assert (IHn2 := IHn).
+      apply seq_term in H.
+      destruct H. assert (H3 := H).
+      specialize IHn with (c:=c1) (s1:=s1) (s2:=x).
+      apply IHn in H.
+      rewrite <- HeqH2 in H.
+      injection H; intros; rewrite <- H1 in *; clear H1; clear H.
+      apply ieval_iseq with (c2:=c2) (s3:=s2) (s2:=s) in H2.
+      specialize IHn2 with (c:=c2) (s1:=s) (s2:=s2); apply IHn2 in H2;
+         assumption.
+      assumption.
+      rewrite Heqm in *. rewrite H1 in *. clear H1.
+      apply seq_term in H; destruct H.
+      specialize IHn with (c:=c1) (s1:=s1) (s2:=x); apply IHn in H.
+      contradict HeqH2. crush.
+    (* End SEQ *)
+      cond_simpl (eval_bexp b s1); rewrite Heqm in *; rewrite H1 in *;
+        clear H1; apply IHn with (s2:=s2); rewrite <- H; simpl;
+        rewrite <- HeqH2; reflexivity.
+    (* End IF *)
+      cond_simpl (eval_bexp b s1); rewrite Heqm in *; rewrite H1 in *.
+      remember ((Seq c (While b c))) as c2. apply IHn. rewrite <- H.
+      simpl. rewrite <- HeqH2. rewrite <- Heqc2. reflexivity.
+      rewrite <- H. simpl. rewrite <- HeqH2. reflexivity.
 Qed.
 induction m.
 rewrite plus_comm; simpl; rewrite H; reflexivity.
 assert ( n + S m = ((n + m) + 1) ). crush.
-rewrite H0.
-apply ieval_plus'.
-assumption.
+rewrite H0; apply ieval_plus'; assumption.
 Qed.
 
 Ltac destruct_inds IHeval_com1 IHeval_com2 :=
@@ -212,12 +215,6 @@ Tactic Notation "raise" constr(x0) := eapply ieval_plus with (n := _) (m := x0).
 Tactic Notation "raise" := raise 1; rewrite plus_comm; simpl plus.
 Tactic Notation "raise" constr(x0) "in" constr(H) := eapply ieval_plus with (n := _) (m := x0) in H.
 Tactic Notation "raise" "in" constr(H) := raise 1 in H; rewrite plus_comm in H; simpl plus in H.
-
-Ltac unroll_ieval_com := 
-  match goal with
-    | [ |- ieval_com (S ?X) _ _ = _ ] => let y:=fresh in let Heqy:=fresh in remember X as y eqn:Heqy; simpl ieval_com; rewrite Heqy
-    | [ H: context[ieval_com (S ?X) _ _] |- _ ] => let y:=fresh in let Heqy:=fresh in remember X as y eqn:Heqy; simpl ieval_com in H; rewrite Heqy in H
-  end.
 
 Lemma EvalCom1 : forall c s1 s2, eval_com c s1 s2 -> exists n, ieval_com n c s1 = Some s2.
     intros.
@@ -248,8 +245,6 @@ Qed.
    ieval_com n c s1 = Some s2 -> eval_com c s1 s2
 
 *)
-
-Ltac cond_simpl c := let cond:=fresh in remember c as cond; destruct cond; simpl.
 
 Lemma EvalCom2 : forall n c s1 s2, ieval_com n c s1 = Some s2 -> eval_com c s1 s2.
 Lemma EvalCom2' : forall n c s1 s2, ieval_com (S n) c s1 = Some s2 -> eval_com c s1 s2.
