@@ -203,33 +203,43 @@ apply ieval_plus'.
 assumption.
 Qed.
 
+Ltac destruct_inds IHeval_com1 IHeval_com2 :=
+  destruct IHeval_com1 as [x IH1]; destruct IHeval_com2 as [x0 IH2];
+  aterm IH1; aterm IH2; assert (x+x0 <> 0) as IS; [ omega | ];
+  apply neq in IS; destruct IS as [x1 Hyp].
+
+Tactic Notation "raise" constr(x0) := eapply ieval_plus with (n := _) (m := x0).
+Tactic Notation "raise" := raise 1; rewrite plus_comm; simpl plus.
+Tactic Notation "raise" constr(x0) "in" constr(H) := eapply ieval_plus with (n := _) (m := x0) in H.
+Tactic Notation "raise" "in" constr(H) := raise 1 in H; rewrite plus_comm in H; simpl plus in H.
+
+Ltac unroll_ieval_com := 
+  match goal with
+    | [ |- ieval_com (S ?X) _ _ = _ ] => let y:=fresh in let Heqy:=fresh in remember X as y eqn:Heqy; simpl ieval_com; rewrite Heqy
+    | [ H: context[ieval_com (S ?X) _ _] |- _ ] => let y:=fresh in let Heqy:=fresh in remember X as y eqn:Heqy; simpl ieval_com in H; rewrite Heqy in H
+  end.
+
 Lemma EvalCom1 : forall c s1 s2, eval_com c s1 s2 -> exists n, ieval_com n c s1 = Some s2.
-intros.
-induction H.
-exists 1. crush.
-exists 1. crush.
-
-(* TODO: Make this  a tactic *)
-destruct IHeval_com1; destruct IHeval_com2; aterm H1; aterm H2.
-assert (x+x0 <> 0). omega.
-apply neq in H5; destruct H5; exists (S (S x1)). rewrite <- H5. simpl.
-apply ieval_plus with (n:=x) (m:=x0) in H1. rewrite H1.
-apply ieval_plus with (n:=x0) (m:=x) in H2. rewrite <- H2.
-assert (x0 + x = x + x0). apply plus_comm. rewrite H6. reflexivity.
-
-destruct IHeval_com; exists (S x); simpl; rewrite H; rewrite H1; reflexivity.
-destruct IHeval_com; exists (S x); simpl; rewrite H; rewrite H1; reflexivity.
-
-exists 1; simpl; rewrite H; reflexivity.
-
-(* Basically the same as above *)
-destruct IHeval_com1 as [x IH1]; destruct IHeval_com2 as [x0 IH2];
-aterm IH1; aterm IH2; assert (x+x0 <> 0) as IS; [ omega | ];
-apply neq in IS; destruct IS as [x1 Hyp]; exists (S (S (S x1))); remember (S (S x1)) as y;
-simpl; rewrite H; rewrite Heqy; rewrite <- Hyp; simpl;
-apply ieval_plus with (n:=x) (m:=x0) in IH1; rewrite IH1;
-apply ieval_plus with (n:=x0) (m:=x) in IH2; rewrite <- IH2;
-assert (x0 + x = x + x0) as Hcomm; [ apply plus_comm | ]; rewrite Hcomm; reflexivity.
+    intros.
+    induction H; try solve [
+    (* Skip, Assign, While false *)
+        (exists 1; simpl; try rewrite H; reflexivity) |  
+    (* Ifs *)
+        destruct IHeval_com; exists (S x); simpl; 
+        rewrite H; rewrite H1; reflexivity ];
+    (* Common Setup *)
+        destruct_inds IHeval_com1 IHeval_com2;
+    (* Seq *)
+       [( exists (S (S x1)); 
+          rewrite <- Hyp; unroll_ieval_com )
+    (* While True *)
+       | (exists (S (S (S x1))); 
+         unroll_ieval_com; rewrite <- Hyp; 
+         rewrite H; unroll_ieval_com ) ];
+    (* Common cleanup *)
+       raise x0 in IH1; raise x in IH2; 
+       rewrite <- plus_comm in IH2; 
+       rewrite IH1; rewrite IH2; reflexivity.
 Qed.
 
 
@@ -239,64 +249,49 @@ Qed.
 
 *)
 
+Ltac cond_simpl c := let cond:=fresh in remember c as cond; destruct cond; simpl.
+
 Lemma EvalCom2 : forall n c s1 s2, ieval_com n c s1 = Some s2 -> eval_com c s1 s2.
 Lemma EvalCom2' : forall n c s1 s2, ieval_com (S n) c s1 = Some s2 -> eval_com c s1 s2.
-intro n. induction n.
-intros. destruct c; crush.
-remember (eval_bexp b s1) as x; destruct x; crush.
-remember (eval_bexp b s1) as x; destruct x; crush.
-intros.
-destruct c.
-crush.
-crush.
-remember (S n) as x in H.
-simpl ieval_com in H.
-remember (ieval_com x c1 s1) as y.
-destruct y. rewrite Heqx in H.
-assert (IHn2:=IHn).
-specialize IHn with (c:=c2) (s1:=s) (s2:=s2).
-specialize IHn2 with (c:=c1) (s1:=s1) (s2:=s).
-rewrite Heqx in Heqy.
-apply IHn in H.
-apply eq_sym in Heqy.
-apply IHn2 in Heqy.
-apply (Eval_seq c1 s1 s c2 s2); assumption.
-contradict H. crush.
-remember (S n) as x.
-simpl ieval_com in H.
-remember (eval_bexp b s1) as cond; destruct cond; simpl.
-specialize IHn with (c:=c1) (s1:=s1) (s2:=s2). apply IHn in H.
-apply (Eval_if_true b c1 c2 s1 s2); auto.
-specialize IHn with (c:=c2) (s1:=s1) (s2:=s2). apply IHn in H.
-apply (Eval_if_false b c1 c2 s1 s2); auto.
-remember (S n) as x.
-simpl ieval_com in H.
-remember (eval_bexp b s1) as cond; destruct cond; simpl.
-aterm H. apply neq in H0. destruct H0.
-rewrite H0 in H.
-simpl ieval_com in H.
-remember (ieval_com x0 c s1) as z.
-destruct z.
-apply eq_sym in Heqz.
-apply ieval_plus with (n:= x0) (m:=1) in Heqz.
-rewrite plus_comm in Heqz. simpl plus in Heqz. rewrite <- H0 in Heqz.
-assert (IHn2 := IHn).
-specialize IHn with (c:=c) (s1:=s1) (s2:=s). apply IHn in Heqz.
-apply (Eval_while_true b c s1 s s2).
-auto.
-auto.
-apply ieval_plus with (n:= x0) (m:=1) in H.
-rewrite plus_comm in H. simpl plus in H. rewrite <- H0 in H.
-specialize IHn2 with (c:=(While b c)) (s1:=s) (s2:=s2); apply IHn2 in H; assumption.
-crush.
-injection H.
-intros.
-crush.
+  intro n. induction n.
+  (* Base Case *)
+    intros; destruct c; crush; 
+    remember (eval_bexp b s1) as x; destruct x; crush.
+  (* Induction *)
+    intros.
+    destruct c. crush. crush.
+  (* Seq *)
+    unroll_ieval_com.
+    remember (S n) as x in H; simpl ieval_com in H.
+    remember (ieval_com x c1 s1) as y.
+    destruct y. 
+    rewrite Heqx in *.
+    assert (IHn2:=IHn).
+    specialize IHn with (c:=c2) (s1:=s) (s2:=s2).
+    specialize IHn2 with (c:=c1) (s1:=s1) (s2:=s).
+    rewrite <- H1 in *; apply IHn in H.
+    apply eq_sym in Heqy.
+    apply IHn2 in Heqy.
+    apply (Eval_seq c1 s1 s c2 s2); assumption.
+    contradict H. crush.
+  (* If *)
+    unroll_ieval_com.
+    cond_simpl (eval_bexp b s1); crush.
+  (* While *) 
+    unroll_ieval_com.
+    cond_simpl (eval_bexp b s1).
+    unroll_ieval_com.
+    rewrite H3 in *; rewrite H1 in *; clear H3; clear H1.
+    cond_simpl (ieval_com n c s1).
+    apply (Eval_while_true b c s1 s s2).
+    apply eq_sym; assumption.
+    apply eq_sym in HeqH1; raise in HeqH1; 
+      eapply IHn in HeqH1; assumption. 
+    raise in H; eapply IHn; assumption.
+    contradict H; crush.
+    crush.
 Qed.
-Show.
-intros.
-aterm H. apply neq in H0; destruct H0.
-rewrite H0 in H. apply EvalCom2' in H. assumption.
+intros; aterm2 H; apply EvalCom2' in H; assumption.
 Qed.
 
 (* Write a function
@@ -499,8 +494,6 @@ Qed.
 rewrite Skips' in H1; assumption.
 Qed.
 
-Ltac raise H x :=  apply ieval_plus with (n := x) (m := 1) in H; rewrite plus_comm in H; simpl plus in H.
-
 Lemma Skip1 : forall x c1 c2 s1 s2, c1 = Skip -> c2 <> Skip -> ieval_com (S (S x)) (Seq (optimize_com c1) (optimize_com c2)) s1 = Some s2 -> ieval_com (S (S x)) (optimize_com (Seq c1 c2)) s1 = Some s2.
 intros. 
 Lemma Skip1': forall c1 c2, c1 = Skip -> c2 <> Skip -> (optimize_com c2) = (optimize_com (Seq c1 c2)).
@@ -510,7 +503,7 @@ Show.
 rewrite H in H1. remember (S x) as y. simpl in H1.
 rewrite Heqy in H1. simpl ieval_com at 1 in H1.
 rewrite <- Skip1' with (c1 := c1). rewrite <- Heqy in H1.
-raise H1 y. assumption.
+raise in H1. assumption.
 assumption. assumption.
 Qed.
 
@@ -527,8 +520,7 @@ remember (ieval_com y (optimize_com c1) s1) as cond.
 destruct cond.
 rewrite <- H1.
 apply eq_sym in Heqcond.
-raise Heqcond y.
-rewrite Heqcond. reflexivity.
+raise in Heqcond; rewrite Heqcond; reflexivity.
 contradict H1. crush.
 assumption. assumption.
 Qed.
@@ -597,11 +589,11 @@ destruct cond.
 specialize IHx with (c:=c1) (s1:=s1) (s2:=s2).
 apply IHx in H.
 remember (optimize_bexp b) as cond'.
-destruct cond'; [ raise H y; assumption |
+destruct cond'; [ raise in H; assumption |
 contradict Heqcond; rewrite bexp_opt_correct; rewrite <- Heqcond'; simpl; crush | | | | | ];
 rewrite Heqcond'; simpl ieval_com; rewrite <- bexp_opt_correct; rewrite <- Heqcond; assumption.
 remember (optimize_bexp b) as cond'.
-destruct cond'; [ contradict Heqcond; rewrite bexp_opt_correct; rewrite <- Heqcond'; simpl; crush  | specialize IHx with (c:=c2) (s1:=s1) (s2:=s2); apply IHx in H; raise H y; assumption | | | | | ]; rewrite Heqcond'; simpl ieval_com; rewrite <- bexp_opt_correct; rewrite <- Heqcond;
+destruct cond'; [ contradict Heqcond; rewrite bexp_opt_correct; rewrite <- Heqcond'; simpl; crush  | specialize IHx with (c:=c2) (s1:=s1) (s2:=s2); apply IHx in H; raise in H; assumption | | | | | ]; rewrite Heqcond'; simpl ieval_com; rewrite <- bexp_opt_correct; rewrite <- Heqcond;
 specialize IHx with (c:=c2) (s1:=s1) (s2:=s2); apply IHx in H; assumption.
 (* END If *)
 crush.
