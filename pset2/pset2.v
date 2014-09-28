@@ -135,17 +135,6 @@ Lemma ieval_iseq : forall n c1 c2 s1 s2 s3,
   intros. rewrite <- H. crush.
 Qed.
 
-Lemma seq_term : forall n c1 c2 s1 s2, ieval_com (S n) (Seq c1 c2) s1 = Some s2 ->
-         exists s', ieval_com n c1 s1 = Some s'.
-  crush.
-  remember (ieval_com n c1 s1) as x.
-  destruct x.
-  crush.
-  exists s.
-  rewrite Heqx. reflexivity.
-  contradict H. crush.
-Qed.
-
 Hint Resolve ieval_seq.
 
 Ltac unroll_ieval_com := 
@@ -154,9 +143,19 @@ Ltac unroll_ieval_com :=
     | [ H: context[ieval_com (S ?X) _ _] |- _ ] => let y:=fresh in let Heqy:=fresh in remember X as y eqn:Heqy; simpl ieval_com in H; rewrite Heqy in H
   end.
 
+Ltac clean :=
+  repeat match goal with
+    | [ H: ?m = S ?n |- _ ] => rewrite H in *; clear H
+    | [ H: S ?m = ?n |- _ ] => rewrite <- H in *; clear H
+end.
+
 Ltac cond_simpl c := let cond:=fresh in remember c as cond; destruct cond; simpl.
 
-Check NPeano.Nat.add_succ_r.
+Lemma seq_term : forall n c1 c2 s1 s2, ieval_com (S n) (Seq c1 c2) s1 = Some s2 ->
+         exists s', ieval_com n c1 s1 = Some s'.
+  crush. cond_simpl (ieval_com n c1 s1). crush. exists s. crush. crush.
+Qed.
+
 Lemma ieval_plus : forall n c s1 s2, 
        ieval_com n c s1 = Some s2 -> 
          forall m, ieval_com (n + m) c s1 = Some s2.
@@ -173,8 +172,7 @@ Lemma ieval_plus' : forall n c s1 s2,
     remember (S n) as m.
     destruct c. crush. crush.
     (* Begin SEQ *)
-      cond_simpl (ieval_com m c1 s1). 
-      rewrite Heqm in *; rewrite H1 in *; clear H1.
+      cond_simpl (ieval_com m c1 s1). clean.
       assert (H2 := H). assert (IHn2 := IHn).
       apply seq_term in H.
       destruct H. assert (H3 := H).
@@ -186,24 +184,22 @@ Lemma ieval_plus' : forall n c s1 s2,
       specialize IHn2 with (c:=c2) (s1:=s) (s2:=s2); apply IHn2 in H2;
          assumption.
       assumption.
-      rewrite Heqm in *. rewrite H1 in *. clear H1.
-      apply seq_term in H; destruct H.
+      clean; apply seq_term in H; destruct H.
       specialize IHn with (c:=c1) (s1:=s1) (s2:=x); apply IHn in H.
       contradict HeqH2. crush.
     (* End SEQ *)
-      cond_simpl (eval_bexp b s1); rewrite Heqm in *; rewrite H1 in *;
-        clear H1; apply IHn with (s2:=s2); rewrite <- H; simpl;
-        rewrite <- HeqH2; reflexivity.
+      cond_simpl (eval_bexp b s1); clean; apply IHn with (s2:=s2); 
+        rewrite <- H; simpl; rewrite <- HeqH2; reflexivity.
     (* End IF *)
-      cond_simpl (eval_bexp b s1); rewrite Heqm in *; rewrite H1 in *.
+      cond_simpl (eval_bexp b s1); clean.
       remember ((Seq c (While b c))) as c2. apply IHn. rewrite <- H.
       simpl. rewrite <- HeqH2. rewrite <- Heqc2. reflexivity.
       rewrite <- H. simpl. rewrite <- HeqH2. reflexivity.
-Qed.
-induction m.
-rewrite plus_comm; simpl; rewrite H; reflexivity.
-assert ( n + S m = ((n + m) + 1) ). crush.
-rewrite H0; apply ieval_plus'; assumption.
+  Qed.
+  induction m.
+  rewrite plus_comm; simpl; rewrite H; reflexivity.
+  assert ( n + S m = ((n + m) + 1) ). crush.
+  rewrite H0; apply ieval_plus'; assumption.
 Qed.
 
 Ltac destruct_inds IHeval_com1 IHeval_com2 :=
@@ -357,31 +353,16 @@ Fixpoint optimize_binop (b: binop) (x: aexp) (y: aexp) : aexp :=
       | (a, Const 0) => a
       | (a,b) => (Binop a Minus b)
     end
-  end.                                       
+  end.                           
+
+Ltac Hammer n := try (destruct n; simpl; try omega).
 
 Lemma binop_opt_correct : forall b x y s, eval_aexp (Binop x b y) s = eval_aexp (optimize_binop b x y) s.
-intros.
-destruct b.
-simpl optimize_binop.
-destruct x; try destruct n; destruct y; try destruct n; auto; simpl; try omega.
-destruct n0; simpl; omega.
-destruct n0; simpl; omega.
-simpl optimize_binop.
-destruct x; try destruct n; destruct y; try destruct n; auto; simpl; try omega.
-destruct n; simpl; omega.
-destruct n0; simpl. omega.
-destruct n0. simpl. omega.
-destruct n0; simpl; omega.
-destruct n0; simpl. omega.
-destruct n0; simpl. omega.
-reflexivity.
-destruct n. simpl. omega.
-destruct n; simpl; omega.
-destruct n; simpl; omega.
-simpl optimize_binop.
-destruct y. destruct n; simpl; omega.
-destruct x; simpl; omega.
-reflexivity.
+  intros.
+  destruct b; simpl optimize_binop; destruct x;
+  Hammer n; Hammer n0; destruct y;
+  Hammer n; Hammer n; Hammer n0; Hammer n0;
+  simpl; try omega.
 Qed.
  
 Fixpoint optimize_aexp (a: aexp) : aexp :=
