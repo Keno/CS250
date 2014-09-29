@@ -306,45 +306,15 @@ Qed.
    * replace (if Ff c1 else c2) with c2
 *)
 
-(*
-This is a better optimizer, but it's hard to proof
-
-Fixpoint optimize_com' (c:com) : option com :=
-  match c with
-      | Skip => None
-      | Seq c1 c2 => match (optimize_com' c1, optimize_com' c2) with
-        | (Some c1', Some c2') => Some (Seq c1' c2')
-        | (Some c1', None) => Some c1'
-        | (None, Some c2') => Some c2'
-        | (None, None) => None
-      end
-      | _ => Some c   
-end. 
-
-Definition optimize_com (c:com) : com :=
-  match (optimize_com' c) with
-      | Some c' => c'
-      | None => Skip
-  end.
-*)
-
 Fixpoint optimize_binop (b: binop) (x: aexp) (y: aexp) : aexp :=
   match b with
     | Times => match (x,y) with
-      | (Const 1, Const 1) => Const 1
-      | (Const 1, Const 0) => Const 0
-      | (Const 0, Const 1) => Const 0
-      | (Const 0, Const 0) => Const 0
-      | (Const 1, b) => b
-      | (a, Const 1) => a
-      | (Const 0, b) => Const 0
-      | (a, Const 0) => Const 0
+      | (a, Const 1) | (Const 1, a) => a
+      | (Const 0, _) | (_, Const 0) => Const 0
       | (a,b) => (Binop a Times b)
     end
     | Plus => match (x,y) with
-      | (Const 0, Const 0) => Const 0
-      | (a, Const 0) => a
-      | (Const 0, b) => b
+      | (a, Const 0) | (Const 0, a) => a
       | (a,b) => (Binop a Plus b)
     end
     | Minus => match (x,y) with
