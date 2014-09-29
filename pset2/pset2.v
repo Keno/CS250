@@ -139,8 +139,8 @@ Hint Resolve ieval_seq.
 
 Ltac unroll_ieval_com := 
   match goal with
-    | [ |- ieval_com (S ?X) _ _ = _ ] => let y:=fresh in let Heqy:=fresh in remember X as y eqn:Heqy; simpl ieval_com; rewrite Heqy
-    | [ H: context[ieval_com (S ?X) _ _] |- _ ] => let y:=fresh in let Heqy:=fresh in remember X as y eqn:Heqy; simpl ieval_com in H; rewrite Heqy in H
+    | [ |- ieval_com (S ?X) _ _ = _ ] => let y:=fresh in let Heqy:=fresh in remember X as y eqn:Heqy; simpl ieval_com; rewrite Heqy in *; clear Heqy
+    | [ H: context[ieval_com (S ?X) _ _] |- _ ] => let y:=fresh in let Heqy:=fresh in remember X as y eqn:Heqy; simpl ieval_com in H; rewrite Heqy in *; clear Heqy
   end.
 
 Ltac clean :=
@@ -177,8 +177,7 @@ Lemma ieval_plus' : forall n c s1 s2,
       apply seq_term in H.
       destruct H. assert (H3 := H).
       specialize IHn with (c:=c1) (s1:=s1) (s2:=x).
-      apply IHn in H.
-      rewrite <- HeqH2 in H.
+      apply IHn in H. rewrite <- HeqH1 in H.
       injection H; intros; rewrite <- H1 in *; clear H1; clear H.
       apply ieval_iseq with (c2:=c2) (s3:=s2) (s2:=s) in H2.
       specialize IHn2 with (c:=c2) (s1:=s) (s2:=s2); apply IHn2 in H2;
@@ -186,15 +185,15 @@ Lemma ieval_plus' : forall n c s1 s2,
       assumption.
       clean; apply seq_term in H; destruct H.
       specialize IHn with (c:=c1) (s1:=s1) (s2:=x); apply IHn in H.
-      contradict HeqH2. crush.
+      contradict HeqH1. crush.
     (* End SEQ *)
       cond_simpl (eval_bexp b s1); clean; apply IHn with (s2:=s2); 
-        rewrite <- H; simpl; rewrite <- HeqH2; reflexivity.
+        rewrite <- H; simpl; rewrite <- HeqH1; reflexivity.
     (* End IF *)
       cond_simpl (eval_bexp b s1); clean.
       remember ((Seq c (While b c))) as c2. apply IHn. rewrite <- H.
-      simpl. rewrite <- HeqH2. rewrite <- Heqc2. reflexivity.
-      rewrite <- H. simpl. rewrite <- HeqH2. reflexivity.
+      simpl. rewrite <- HeqH1. rewrite <- Heqc2. reflexivity.
+      rewrite <- H. simpl. rewrite <- HeqH1. reflexivity.
   Qed.
   induction m.
   rewrite plus_comm; simpl; rewrite H; reflexivity.
@@ -260,7 +259,7 @@ Lemma EvalCom2' : forall n c s1 s2, ieval_com (S n) c s1 = Some s2 -> eval_com c
     assert (IHn2:=IHn).
     specialize IHn with (c:=c2) (s1:=s) (s2:=s2).
     specialize IHn2 with (c:=c1) (s1:=s1) (s2:=s).
-    rewrite <- H1 in *; apply IHn in H.
+    apply IHn in H.
     apply eq_sym in Heqy.
     apply IHn2 in Heqy.
     apply (Eval_seq c1 s1 s c2 s2); assumption.
@@ -272,12 +271,11 @@ Lemma EvalCom2' : forall n c s1 s2, ieval_com (S n) c s1 = Some s2 -> eval_com c
     unroll_ieval_com.
     cond_simpl (eval_bexp b s1).
     unroll_ieval_com.
-    rewrite H3 in *; rewrite H1 in *; clear H3; clear H1.
     cond_simpl (ieval_com n c s1).
     apply (Eval_while_true b c s1 s s2).
     apply eq_sym; assumption.
-    apply eq_sym in HeqH1; raise in HeqH1; 
-      eapply IHn in HeqH1; assumption. 
+    apply eq_sym in HeqH2; raise in HeqH2; 
+      eapply IHn in HeqH2; assumption. 
     raise in H; eapply IHn; assumption.
     contradict H; crush.
     crush.
@@ -414,11 +412,11 @@ Fixpoint optimize_bexp (b: bexp) : bexp :=
 
 (* These are probably in the library somewhere but I couldn't find them *)
 Lemma eqb_true : forall x, NPeano.Nat.eqb x x = true.
-induction x; crush.
+  induction x; crush.
 Qed.
 
 Lemma ltb_false : forall x, NPeano.Nat.ltb x x = false.
-induction x; crush.
+  induction x; crush.
 Qed.
 
 Lemma bexp_opt_correct : forall b s, eval_bexp b s = eval_bexp (optimize_bexp b) s.
@@ -461,70 +459,6 @@ Fixpoint optimize_com (c:com) : com :=
       | _ => c
   end.
 
-Lemma Skips : forall x c1 c2 s1 s2, c1 <> Skip -> c2 <> Skip -> ieval_com (S x) (Seq (optimize_com c1) (optimize_com c2)) s1 = Some s2 -> ieval_com (S x) (optimize_com (Seq c1 c2)) s1 = Some s2.
-intros.
-Lemma Skips' : forall c1 c2, c1 <> Skip -> c2 <> Skip -> Seq (optimize_com c1) (optimize_com c2) = (optimize_com (Seq c1 c2)).
-intros.
-unfold optimize_com at 3. fold optimize_com. destruct c1; destruct c2; crush.
-Qed.
-rewrite Skips' in H1; assumption.
-Qed.
-
-Lemma Skip1 : forall x c1 c2 s1 s2, c1 = Skip -> c2 <> Skip -> ieval_com (S (S x)) (Seq (optimize_com c1) (optimize_com c2)) s1 = Some s2 -> ieval_com (S (S x)) (optimize_com (Seq c1 c2)) s1 = Some s2.
-intros. 
-Lemma Skip1': forall c1 c2, c1 = Skip -> c2 <> Skip -> (optimize_com c2) = (optimize_com (Seq c1 c2)).
-unfold optimize_com at 2. fold optimize_com. destruct c1; destruct c2; crush.
-Qed.
-Show.
-rewrite H in H1. remember (S x) as y. simpl in H1.
-rewrite Heqy in H1. simpl ieval_com at 1 in H1.
-rewrite <- Skip1' with (c1 := c1). rewrite <- Heqy in H1.
-raise in H1. assumption.
-assumption. assumption.
-Qed.
-
-Lemma Skip2 : forall x c1 c2 s1 s2, c1 <> Skip -> c2 = Skip -> ieval_com (S (S x)) (Seq (optimize_com c1) (optimize_com c2)) s1 = Some s2 -> ieval_com (S (S x)) (optimize_com (Seq c1 c2)) s1 = Some s2.
-intros. 
-Lemma Skip2': forall c1 c2, c1 <> Skip -> c2 = Skip -> (optimize_com c1) = (optimize_com (Seq c1 c2)).
-unfold optimize_com at 2. fold optimize_com. destruct c1; destruct c2; crush.
-Qed.
-Show.
-rewrite H0 in H1. remember (S x) as y. simpl in H1. simpl ieval_com at 1 in H1.
-rewrite <- Skip2' with (c1 := c1). 
-rewrite Heqy in H1. simpl ieval_com at 2 in H1. rewrite <- Heqy in H1. simpl in H1.
-remember (ieval_com y (optimize_com c1) s1) as cond.
-destruct cond.
-rewrite <- H1.
-apply eq_sym in Heqcond.
-raise in Heqcond; rewrite Heqcond; reflexivity.
-contradict H1. crush.
-assumption. assumption.
-Qed.
-
-Lemma NoSkips : forall x c1 c2 s1 s2, ieval_com (S (S x)) (Seq (optimize_com c1) (optimize_com c2)) s1 = Some s2 -> ieval_com (S (S x)) (optimize_com (Seq c1 c2)) s1 = Some s2.
-intros.
-destruct c1.
-destruct c2; [ crush | | | |]; apply Skip1; crush.
-destruct c2; [ crush | | | |]; apply Skips; crush.
-destruct c2; [ apply Skip2; crush | | | |]; apply Skips; crush.
-destruct c2; [ apply Skip2; crush | | | |]; apply Skips; crush.
-destruct c2; [ apply Skip2; crush | | | |]; apply Skips; crush.
-Qed.
-
-Lemma opt_seq_comp: forall x c1 c2 s1 s s2, ieval_com x (optimize_com c1) s1 = Some s -> ieval_com x (optimize_com c2) s = Some s2 -> ieval_com (S x) (optimize_com (Seq c1 c2)) s1 = Some s2.
-intros.
-assert ((ieval_com (S x) (Seq (optimize_com c1) (optimize_com c2)) s1) = Some s2). apply ieval_seq with (s3:=s); assumption.
-aterm2 H.
-apply NoSkips. assumption.
-Qed.
-
-Lemma assign_correct: forall x a v s1 s2, ieval_com (S x) (optimize_com (Assign v a)) s1 = Some s2 <-> ieval_com (S x) (Assign v a) s1 = Some s2.
-intros.
-simpl ieval_com.
-intros.
-rewrite <- aexpopt_correct. crush.
-Qed.
-
 (* Construct a proof that optimizing a program doesn't change its
    input/output behavior.  That is, show that if we start in state
    s1 and evaluate c to get state s2, then if we evaluate 
@@ -532,56 +466,79 @@ Qed.
    extensionally equivalent to s2.  
 *)
     
-Lemma optimize_correct : forall c s1 s2, eval_com c s1 s2 -> eval_com (optimize_com c) s1 s2.
-Lemma optimize_correct' : forall x c s1 s2, ieval_com (S x) c s1 = Some s2 -> ieval_com (S x) (optimize_com c) s1 = Some s2. 
-intro x. induction x. crush. destruct c; crush.
-rewrite <- aexpopt_correct. reflexivity.
-remember (eval_bexp b s1) as cc; destruct cc; crush.
-(* END Base case *)
+Ltac to_ieval H := apply EvalCom1 in H; destruct H; aterm2 H; simpl in H.
+Ltac to_ieval_assign H := simpl ieval_com in H; rewrite <- aexpopt_correct in H.
+
+Lemma eval_assign_correct : forall v a s' s1, eval_com (Assign v (optimize_aexp a)) s1 s' <-> eval_com (Assign v a) s1 s'.
 intros.
-destruct c.
-crush.
-apply assign_correct. assumption.
-aterm2 H.
-assert (H2:=H).
-apply seq_term in H.
-destruct H.
-apply ieval_iseq with (c2:=c2) (s2:=x1) (s3:=s2) in H2.
-injection H0.
-intros.
-rewrite H1 in IHx.
-assert (IHx2 := IHx).
-specialize IHx with (c:=c1) (s1:=s1) (s2:=x1).
-specialize IHx2 with (c:=c2) (s1:=x1) (s2:=s2).
-apply IHx in H. apply IHx2 in H2.
-clear IHx; clear IHx2.
-apply opt_seq_comp with (s:=x1); assumption. assumption.
-(* END Seq *)
-simpl optimize_com.
-remember (S x) as y.
-simpl ieval_com in H.
-remember (eval_bexp b s1) as cond.
-destruct cond.
-specialize IHx with (c:=c1) (s1:=s1) (s2:=s2).
-apply IHx in H.
-remember (optimize_bexp b) as cond'.
-destruct cond'; [ raise in H; assumption |
-contradict Heqcond; rewrite bexp_opt_correct; rewrite <- Heqcond'; simpl; crush | | | | | ];
-rewrite Heqcond'; simpl ieval_com; rewrite <- bexp_opt_correct; rewrite <- Heqcond; assumption.
-remember (optimize_bexp b) as cond'.
-destruct cond'; [ contradict Heqcond; rewrite bexp_opt_correct; rewrite <- Heqcond'; simpl; crush  | specialize IHx with (c:=c2) (s1:=s1) (s2:=s2); apply IHx in H; raise in H; assumption | | | | | ]; rewrite Heqcond'; simpl ieval_com; rewrite <- bexp_opt_correct; rewrite <- Heqcond;
-specialize IHx with (c:=c2) (s1:=s1) (s2:=s2); apply IHx in H; assumption.
-(* END If *)
-crush.
+split; intros; apply EvalCom2 with (n:=1); simpl; apply EvalCom1 in H; destruct H; aterm2 H; simpl in H.
+rewrite <- aexpopt_correct in H; assumption.
+rewrite aexpopt_correct in H; assumption.
 Qed.
-Show.
+
+Ltac myinj := let Hx := fresh in injection H as Hx; rewrite Hx in *; clear Hx.
+
+Ltac magic :=
+  repeat match goal with
+      | [ H: context[eval_com (optimize_com Skip) _ _] |- _ ] =>  to_ieval H; (try myinj); try assumption
+      | [ H: context[eval_com (Assign _ (optimize_aexp _)) _ _] |- _ ] => apply -> eval_assign_correct in H; try assumption                                 | [ |- context[eval_com (Assign _ (optimize_aexp _)) _ _] ] => apply eval_assign_correct; try assumption 
+      | [ H: context[eval_com (optimize_com (Assign _ _)) _ _ ] |- _] => simpl optimize_com in H; try assumption
+      | [ H1: eval_com ?c1 ?s1 ?s', H2: eval_com ?c2 ?s' ?s2 |- eval_com (Seq _ _) ?s1 ?s2 ] => apply Eval_seq with (s1:=s'); magic; try assumption
+  end.
+
+Ltac imagic :=
+  match goal with
+      | [ H: ieval_com ?x ?c ?s1 = ?s2 |- ieval_com (S ?x) ?c ?s1 = ?s2 ] => raise in H; try assumption
+  end.
+
+Lemma seq_correct : forall c1 c2 s1 s' s2, eval_com (optimize_com c1) s1 s' -> eval_com (optimize_com c2) s' s2 -> eval_com (optimize_com (Seq c1 c2)) s1 s2.
 intros.
-apply EvalCom1 in H.
-destruct H.
-apply EvalCom2 with (n:=x).
-aterm2 H.
-apply optimize_correct'.
-assumption.
+simpl optimize_com.
+destruct c1; destruct c2; first [ 
+ (apply Eval_seq with (s1:=s'); magic; try assumption) | (magic; crush; magic) | magic ].
+Qed.
+
+Ltac remember_cond name := 
+  match goal with
+      | [ |- context[ (If ?c _ _ )] ] => remember c as name
+  end.
+
+Ltac ifc H Heqcond := contradict H; rewrite bexp_opt_correct; rewrite <- Heqcond; simpl; crush.
+Ltac ifb H Heqcond s1 := let cond4:=fresh in  remember_cond cond4; unroll_ieval_com; remember (eval_bexp cond4 s1) as cond5 eqn:Heqcond5; destruct cond5; first [ 
+assumption |
+contradict H; rewrite bexp_opt_correct; rewrite <- Heqcond; rewrite <- Heqcond5; crush; try assumption ].
+
+Lemma if_correct : forall b c1 c2 s1 s2, 
+                     eval_bexp b s1 = false \/ eval_com (optimize_com c1) s1 s2 -> 
+                     eval_bexp b s1 = true \/ eval_com (optimize_com c2) s1 s2 -> eval_com (optimize_com (If b c1 c2)) s1 s2.
+intros.
+destruct H; destruct H0; 
+[ contradict H; crush | .. ]; 
+try (apply EvalCom1 in H0; destruct H0);
+try (apply EvalCom1 in H; destruct H);
+try (apply EvalCom2 with (n:= x+x0));
+try (apply EvalCom2 with (n:= S x)); simpl optimize_com; remember (optimize_bexp b) as cond.
+destruct cond; [ ifc H Heqcond | imagic | .. ]; ifb H Heqcond s1.
+destruct cond; [ imagic | ifc H0 Heqcond | .. ] ; ifb H0 Heqcond s1.
+destruct cond; [ 
+raise x in H; rewrite plus_comm in H; assumption |
+raise x0 in H0; assumption | .. ];
+(assert (x+x0 <> 0); [ aterm2 H0; crush | ]); apply neq in H1; destruct H1; rewrite H1;
+remember_cond cond4; unroll_ieval_com; remember (eval_bexp cond4 s1) as cond5 eqn:Heqcond5; (destruct cond5;
+[raise (x-1) in H; assert (x1 = (x0 + (x - 1))) as H3; [ aterm2 H0; crush | ]; rewrite H3; assumption |
+raise (x0-1) in H0; assert (x1 = (x + (x0 - 1))) as H3; [ aterm2 H; crush | ]; rewrite H3; assumption ] ).
+Qed.
+
+Theorem opt_correct : forall c s1 s2, eval_com c s1 s2 -> eval_com (optimize_com c) s1 s2.
+intros.
+induction H.
+crush.
+apply EvalCom2 with (n:=1); simpl. rewrite <- aexpopt_correct. reflexivity.
+apply seq_correct with (s':=s1); assumption.
+apply if_correct. right. assumption. left. assumption.
+apply if_correct. left. assumption. right. assumption.
+simpl. apply EvalCom2 with (n:=1). simpl. rewrite H. reflexivity.
+simpl. apply Eval_while_true with (s2:=s2); assumption.
 Qed.
 
 (* Hints:
