@@ -414,11 +414,11 @@ Qed.
 
 Fixpoint optimize_com (c:com) : com :=
   match c with
-      | Seq c1 c2 => match (c1, c2) with
+      | Seq c1 c2 => match (optimize_com c1, optimize_com c2) with
         | (Skip, Skip) => Skip
-        | (Skip, c2') => optimize_com c2'
-        | (c1', Skip) => optimize_com c1'
-        | (c1', c2') => (Seq (optimize_com c1') (optimize_com c2'))
+        | (Skip, c2') => c2'
+        | (c1', Skip) => c1'
+        | (c1', c2') => (Seq c1' c2')
       end
       | Assign v a => Assign v (optimize_aexp a)
       | If bb c1 c2 => match (optimize_bexp bb) with
@@ -426,7 +426,11 @@ Fixpoint optimize_com (c:com) : com :=
          | Ff => optimize_com c2
          | b => If b (optimize_com c1) (optimize_com c2)
       end
-      | _ => c
+      | While bb c1 => match (optimize_bexp bb) with
+         | Ff => Skip
+         | b => While b (optimize_com c1)
+      end
+      | Skip => Skip
   end.
 
 (* Construct a proof that optimizing a program doesn't change its
@@ -451,9 +455,15 @@ Ltac myinj := let Hx := fresh in injection H as Hx; rewrite Hx in *; clear Hx.
 Ltac magic :=
   repeat match goal with
       | [ H: context[eval_com (optimize_com Skip) _ _] |- _ ] =>  to_ieval H; (try myinj); try assumption
-      | [ H: context[eval_com (Assign _ (optimize_aexp _)) _ _] |- _ ] => apply -> eval_assign_correct in H; try assumption                                 | [ |- context[eval_com (Assign _ (optimize_aexp _)) _ _] ] => apply eval_assign_correct; try assumption 
+      | [ H: context[eval_com Skip _ _] |- _ ] =>  to_ieval H; (try myinj); try assumption
+      | [ H: context[eval_com (Assign _ (optimize_aexp _)) _ _] |- _ ] => apply -> eval_assign_correct in H; try assumption                                         | [ |- eval_com (Assign _ (optimize_aexp _)) _ _ ] => apply eval_assign_correct; try assumption 
       | [ H: context[eval_com (optimize_com (Assign _ _)) _ _ ] |- _] => simpl optimize_com in H; try assumption
-      | [ H1: eval_com ?c1 ?s1 ?s', H2: eval_com ?c2 ?s' ?s2 |- eval_com (Seq _ _) ?s1 ?s2 ] => apply Eval_seq with (s1:=s'); magic; try assumption
+      | [ H: eval_com (optimize_com (Seq ?c2 ?c3)) _ _ |- _ ] => remember (optimize_com (Seq c2 c3))
+      | [ H: eval_com (optimize_com (If ?b ?c2 ?c3)) _ _ |- _ ] => remember (optimize_com (If b c2 c3))
+      | [ H: eval_com (optimize_com (While ?b ?c2)) _ _ |- _ ] => remember (optimize_com (While b c2))                                                       
+      | [ H1: eval_com _ ?sx ?s3, H2: eval_com _ ?s3 ?s2 |- eval_com (Seq _ _) ?sx ?s2 ] => apply Eval_seq with (s1:=s3); magic; try assumption
+      | [ H: Some ?s1 = Some ?s2 |- _ ] => let Hx := fresh in injection H as Hx; rewrite Hx in *; clear Hx; clear H
+      | [ |- eval_com Skip ?s ?s ] => apply Eval_skip; assumption
   end.
 
 Ltac imagic :=
@@ -464,13 +474,13 @@ Ltac imagic :=
 Lemma seq_correct : forall c1 c2 s1 s' s2, eval_com (optimize_com c1) s1 s' -> eval_com (optimize_com c2) s' s2 -> eval_com (optimize_com (Seq c1 c2)) s1 s2.
 intros.
 simpl optimize_com.
-destruct c1; destruct c2; first [ 
- (apply Eval_seq with (s1:=s'); magic; try assumption) | (magic; crush; magic) | magic ].
+destruct c1; destruct c2; magic; simpl; magic; destruct c; try destruct c0; magic; simpl; try assumption.
 Qed.
 
 Ltac remember_cond name := 
   match goal with
       | [ |- context[ (If ?c _ _ )] ] => remember c as name
+      | [ |- context[ (While ?c _ )] ] => remember c as name
   end.
 
 Ltac ifc H Heqcond := contradict H; rewrite bexp_opt_correct; rewrite <- Heqcond; simpl; crush.
@@ -499,6 +509,72 @@ remember_cond cond4; unroll_ieval_com; remember (eval_bexp cond4 s1) as cond5 eq
 raise (x0-1) in H0; assert (x1 = (x + (x0 - 1))) as H3; [ aterm2 H; crush | ]; rewrite H3; assumption ] ).
 Qed.
 
+Lemma bexp_true_is_true : forall b, optimize_bexp b = Tt -> (forall s, (eval_bexp b s) = true).
+intros. rewrite bexp_opt_correct. rewrite H. simpl. reflexivity.
+Qed.
+
+Lemma ieval_minus : forall x c s, ieval_com (S x) c s = None -> ieval_com x c s = None.
+induction x.
+intros.
+simpl in H. destruct c; crush.
+intros.
+intros.
+remember (S x) as y.
+simpl ieval_com in H.
+destruct c. crush.
+crush.
+remember (ieval_com y c1 s) as cond.
+destruct cond.
+rewrite Heqy in *.
+unroll_ieval_com.
+remember (ieval_com x c1 s) as cond2.
+destruct cond2.
+specialize IHx with (c:=c2) (s:=s0).
+apply IHx in H.
+apply eq_sym in Heqcond2. raise in Heqcond2. rewrite Heqcond2 in Heqcond. injection Heqcond. intros. rewrite <- H1. assumption.
+reflexivity.
+rewrite Heqy in *; clear Heqy.
+unroll_ieval_com. specialize IHx with (c:=c1) (s:=s). apply eq_sym in Heqcond. apply IHx in Heqcond.
+rewrite Heqcond. reflexivity.
+remember (eval_bexp b s) as cond.
+destruct cond.
+rewrite Heqy in *; clear Heqy.
+specialize IHx with (c:=c1) (s:=s).
+apply IHx in H.
+unroll_ieval_com.
+rewrite <- Heqcond. assumption.
+rewrite Heqy in *; clear Heqy.
+unroll_ieval_com.
+rewrite <- Heqcond.
+specialize IHx with (c:=c2) (s:=s).
+apply IHx in H.
+assumption.
+remember (eval_bexp b s) as cond.
+destruct cond.
+rewrite Heqy in *; clear Heqy.
+unroll_ieval_com.
+rewrite <- Heqcond. apply IHx. assumption.
+rewrite Heqy in *; clear Heqy.
+unroll_ieval_com.
+crush.
+Qed.
+
+Lemma while_inf : forall x b c s1, (forall s, eval_bexp b s = true) -> ieval_com x (While b c) s1 = None.
+intro x.
+induction x.
+intros. simpl. reflexivity.
+intros. apply ieval_minus.
+unroll_ieval_com.
+assert (H2:=H).
+specialize H with (s:=s1). rewrite H.
+simpl.
+remember (ieval_com x c s1) as cond.
+destruct cond.
+specialize IHx with (b:=b) (c:=c) (s1:=s).
+apply IHx in H2. assumption.
+reflexivity.
+Qed.
+
 Theorem opt_correct : forall c s1 s2, eval_com c s1 s2 -> eval_com (optimize_com c) s1 s2.
 intros.
 induction H.
@@ -507,8 +583,25 @@ apply EvalCom2 with (n:=1); simpl. rewrite <- aexpopt_correct. reflexivity.
 apply seq_correct with (s':=s1); assumption.
 apply if_correct. right. assumption. left. assumption.
 apply if_correct. left. assumption. right. assumption.
-simpl. apply EvalCom2 with (n:=1). simpl. rewrite H. reflexivity.
-simpl. apply Eval_while_true with (s2:=s2); assumption.
+simpl. apply EvalCom2 with (n:=1). simpl. 
+remember (optimize_bexp b) as cond.
+destruct cond; try reflexivity; rewrite bexp_opt_correct in H; rewrite <- Heqcond in H; rewrite H; reflexivity.
+simpl.
+remember (optimize_bexp b) as cond.
+destruct cond;
+apply EvalCom1 in H1; destruct H1; [
+apply eq_sym in Heqcond;
+pose proof bexp_true_is_true; specialize H2 with (b:=b); apply while_inf with (x:=x) (c:=c) (s1:=s2) in H2; 
+[rewrite H2 in H1; contradict H1; crush | assumption ] |
+contradict H; rewrite -> bexp_opt_correct; rewrite <- Heqcond; simpl; crush | .. ];
+apply EvalCom1 in IHeval_com2; destruct IHeval_com2;
+apply EvalCom1 in IHeval_com1; destruct IHeval_com1;
+apply EvalCom2 with (n:=(S (S (x0+x1))));
+remember_cond ccc; unroll_ieval_com;
+rewrite Heqcond; rewrite <- bexp_opt_correct; rewrite H;
+simpl ieval_com; raise x0 in H3; rewrite plus_comm in H3; rewrite H3;
+raise x1 in H2; simpl optimize_com in H2; rewrite <- Heqcond in H2; rewrite Heqccc in H2;
+rewrite <- Heqcond; rewrite Heqccc; assumption.
 Qed.
 
 (* Hints:
