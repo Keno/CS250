@@ -30,10 +30,6 @@ Definition state := var -> nat.
 
 Definition get (x:var) (s:state) : nat := s x.
 
-Inductive foo : Type := 
-| Red : nat -> foo
-| Green : bool -> foo.
-
 Definition set (x:var) (n:nat) (s:state) : state := 
   fun y => 
     match string_dec x y with 
@@ -99,17 +95,40 @@ Lemma prog2_div : forall s1 s2, eval_com prog2 s1 s2 -> False.
 
   Lemma prog2_div' : forall c s1 s2, eval_com c s1 s2 -> c = prog2 -> False.
   Proof.
-    unfold prog2 ; induction 1 ; crush.
+    unfold prog2 ; induction 1; crush.
   Qed.
-
+  Show.
   intros. apply (prog2_div' _ _ _ H eq_refl).
 Qed.
 
+(* A simple chained tactic *)
+Ltac myinv H := inversion H ; subst ; clear H ; simpl in *.
+
+(* This tactic applies when we have a hypothesis involving
+   eval_com of either a Seq or an Assign.  It inverts the
+   hypothesis, and performs substitution, simplifying things.
+*)
+Ltac eval_inv := 
+  match goal with 
+    | [ H : eval_com (Seq _ _) _ _ |- _ ] => myinv H
+    | [ H : eval_com (Assign _ _) _ _ |- _ ] => myinv H
+  end.
+
+(* This tactic inverts an eval_com of a While, producing
+   two sub-goals.  It tries to eliminate one (or both) of the goals
+   through discrimination on the hypotheses.
+*)
+Ltac eval_while_inv := 
+  match goal with
+    | [ H : eval_com (While _ _) _ _ |- _ ] => myinv H ; try discriminate
+  end.
+
 Theorem prog1_prop : forall s1 s2, eval_com prog1 s1 s2 -> get "x" s2 = 0.
 Proof.
-  intros.
-  unfold prog1 in H.
-  Admitted.
+  unfold prog1 ; intros.
+  repeat ((repeat eval_inv) ; eval_while_inv).
+  auto.
+Qed.
 
 Theorem seq_assoc : 
   forall c1 c2 c3 s1 s2, 
@@ -122,6 +141,7 @@ Theorem seq_assoc :
         c = Seq (Seq c1 c2) c3 -> 
         eval_com (Seq c1 (Seq c2 c3)) s1 s2.
   Proof.
+    (* Adds all of the eval_com constructors as hints for auto/crush *)
     Hint Constructors eval_com.
     induction 1 ; crush.
     inversion H ; clear H ; subst ; 
@@ -131,6 +151,7 @@ Theorem seq_assoc :
   intros. eapply seq_assoc' ; eauto.
 Qed.
 
+(* Returns true when the variable x occurs as a subexpression of a *)
 Fixpoint contains (x:var) (a:aexp) : bool := 
   match a with 
     | Const _ => false
@@ -138,6 +159,8 @@ Fixpoint contains (x:var) (a:aexp) : bool :=
     | Binop a1 _ a2 => contains x a1 || contains x a2
   end.
 
+(* Changing a variable x that doesn't occur in a doesn't effect the 
+   value of a. *)
 Lemma eval_exp_set : 
   forall s x n a,
     contains x a = false -> 
@@ -148,8 +171,8 @@ Proof.
   destruct (contains x a1) ; crush.
 Qed.  
 
-Ltac inv H := inversion H ; clear H ; subst.
-
+(* We can commute assignments x:=ax; y:=ay  as long as the
+   variables don't overlap. *)
 Lemma assign_comm : 
   forall x ax y ay s1 s2,
     eval_com (Seq (Assign x ax) (Assign y ay)) s1 s2 -> 
@@ -159,13 +182,8 @@ Lemma assign_comm :
     forall s3, eval_com (Seq (Assign y ay) (Assign x ax)) s1 s3 -> 
                forall z, get z s3 = get z s2.
 Proof.
-  intros. 
-  inv H.
-  inv H3.
-  inv H6.
-  inv H5.
-  inv H9.
-  inv H10.
+  intros.
+  repeat eval_inv.
   repeat unfold set, get.
   destruct (string_dec x z) ; destruct (string_dec y z) ; try congruence.
   specialize (eval_exp_set s1 y (eval_aexp ay s1) ax H1).
