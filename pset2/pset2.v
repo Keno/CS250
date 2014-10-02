@@ -451,11 +451,12 @@ Ltac magic :=
   repeat match goal with
       | [ H: context[eval_com (optimize_com Skip) _ _] |- _ ] =>  to_ieval H; (try myinj); try assumption
       | [ H: context[eval_com Skip _ _] |- _ ] =>  to_ieval H; (try myinj); try assumption
-      | [ H: context[eval_com (Assign _ (optimize_aexp _)) _ _] |- _ ] => apply -> eval_assign_correct in H; try assumption                                         | [ |- eval_com (Assign _ (optimize_aexp _)) _ _ ] => apply eval_assign_correct; try assumption 
+      | [ H: context[eval_com (Assign _ (optimize_aexp _)) _ _] |- _ ] => apply -> eval_assign_correct in H; try assumption
+      | [ |- eval_com (Assign _ (optimize_aexp _)) _ _ ] => apply eval_assign_correct; try assumption
       | [ H: context[eval_com (optimize_com (Assign _ _)) _ _ ] |- _] => simpl optimize_com in H; try assumption
       | [ H: eval_com (optimize_com (Seq ?c2 ?c3)) _ _ |- _ ] => remember (optimize_com (Seq c2 c3))
       | [ H: eval_com (optimize_com (If ?b ?c2 ?c3)) _ _ |- _ ] => remember (optimize_com (If b c2 c3))
-      | [ H: eval_com (optimize_com (While ?b ?c2)) _ _ |- _ ] => remember (optimize_com (While b c2))                                                       
+      | [ H: eval_com (optimize_com (While ?b ?c2)) _ _ |- _ ] => remember (optimize_com (While b c2))
       | [ H1: eval_com _ ?sx ?s3, H2: eval_com _ ?s3 ?s2 |- eval_com (Seq _ _) ?sx ?s2 ] => apply Eval_seq with (s1:=s3); magic; try assumption
       | [ H: Some ?s1 = Some ?s2 |- _ ] => let Hx := fresh in injection H as Hx; rewrite Hx in *; clear Hx; clear H
       | [ |- eval_com Skip ?s ?s ] => apply Eval_skip; assumption
