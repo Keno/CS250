@@ -137,10 +137,15 @@ Qed.
 
 Hint Resolve ieval_seq.
 
+Tactic Notation "unroll_ieval_com" "in" constr(H) := 
+  match type of H with 
+    | ieval_com (S ?X) _ _ = _ => let y:=fresh in let Heqy:=fresh in remember X as y eqn:Heqy; simpl ieval_com in H; rewrite Heqy in *; clear Heqy
+  end.
+
 Ltac unroll_ieval_com := 
   match goal with
     | [ |- ieval_com (S ?X) _ _ = _ ] => let y:=fresh in let Heqy:=fresh in remember X as y eqn:Heqy; simpl ieval_com; rewrite Heqy in *; clear Heqy
-    | [ H: context[ieval_com (S ?X) _ _] |- _ ] => let y:=fresh in let Heqy:=fresh in remember X as y eqn:Heqy; simpl ieval_com in H; rewrite Heqy in *; clear Heqy
+    | [ H: context[ieval_com (S ?X) _ _] |- _ ] => unroll_ieval_com in H
   end.
 
 Ltac clean :=
@@ -251,7 +256,7 @@ Lemma EvalCom2' : forall n c s1 s2, ieval_com (S n) c s1 = Some s2 -> eval_com c
     intros.
     destruct c. crush. crush.
   (* Seq *)
-    unroll_ieval_com.
+    unroll_ieval_com in H.
     remember (S n) as x in H; simpl ieval_com in H.
     remember (ieval_com x c1 s1) as y.
     destruct y. 
@@ -440,7 +445,7 @@ rewrite <- aexpopt_correct in H; assumption.
 rewrite aexpopt_correct in H; assumption.
 Qed.
 
-Ltac myinj := let Hx := fresh in injection H as Hx; rewrite Hx in *; clear Hx.
+Ltac myinj H := let Hx := fresh in injection H as Hx; rewrite Hx in *; clear Hx; clear H.
 
 Ltac magic :=
   repeat match goal with
@@ -457,8 +462,11 @@ Ltac magic :=
   end.
 
 Ltac imagic :=
-  match goal with
+  repeat match goal with
       | [ H: ieval_com ?x ?c ?s1 = ?s2 |- ieval_com (S ?x) ?c ?s1 = ?s2 ] => raise in H; try assumption
+      | [ H: ieval_com ?x ?c ?s1 = ?s2, H2: ieval_com (S ?x) ?c ?s1 = ?s3 |- _ ] => 
+          let H3:=fresh in assert(H3:=H); raise in H3; rewrite H3 in H2; myinj H2; subst; try assumption; try reflexivity
+      | [ H: ?x = ieval_com _ _ _ |- _ ] => apply eq_sym in H
   end.
 
 Lemma seq_correct : forall c1 c2 s1 s' s2, eval_com (optimize_com c1) s1 s' -> eval_com (optimize_com c2) s' s2 -> eval_com (optimize_com (Seq c1 c2)) s1 s2.
@@ -504,64 +512,26 @@ intros. rewrite bexp_opt_correct. rewrite H. simpl. reflexivity.
 Qed.
 
 Lemma ieval_minus : forall x c s, ieval_com (S x) c s = None -> ieval_com x c s = None.
-induction x.
-intros.
-simpl in H. destruct c; crush.
-intros.
-intros.
-remember (S x) as y.
-simpl ieval_com in H.
-destruct c. crush.
-crush.
-remember (ieval_com y c1 s) as cond.
-destruct cond.
-rewrite Heqy in *.
-unroll_ieval_com.
-remember (ieval_com x c1 s) as cond2.
-destruct cond2.
-specialize IHx with (c:=c2) (s:=s0).
-apply IHx in H.
-apply eq_sym in Heqcond2. raise in Heqcond2. rewrite Heqcond2 in Heqcond. injection Heqcond. intros. rewrite <- H1. assumption.
-reflexivity.
-rewrite Heqy in *; clear Heqy.
-unroll_ieval_com. specialize IHx with (c:=c1) (s:=s). apply eq_sym in Heqcond. apply IHx in Heqcond.
-rewrite Heqcond. reflexivity.
-remember (eval_bexp b s) as cond.
-destruct cond.
-rewrite Heqy in *; clear Heqy.
-specialize IHx with (c:=c1) (s:=s).
-apply IHx in H.
-unroll_ieval_com.
-rewrite <- Heqcond. assumption.
-rewrite Heqy in *; clear Heqy.
-unroll_ieval_com.
-rewrite <- Heqcond.
-specialize IHx with (c:=c2) (s:=s).
-apply IHx in H.
-assumption.
-remember (eval_bexp b s) as cond.
-destruct cond.
-rewrite Heqy in *; clear Heqy.
-unroll_ieval_com.
-rewrite <- Heqcond. apply IHx. assumption.
-rewrite Heqy in *; clear Heqy.
-unroll_ieval_com.
-crush.
+induction x; intros; [ simpl in H; destruct c; crush | .. ].
+destruct c. crush. crush.
+unroll_ieval_com in H.
+remember (ieval_com (S x) c1 s) as cond. destruct cond. simpl. eapply IHx in H.
+remember (ieval_com x c1 s) as cond2. destruct cond2.
+imagic. reflexivity.
+imagic. eapply IHx in Heqcond. unroll_ieval_com. rewrite Heqcond. reflexivity.
+unroll_ieval_com in H.
+remember (eval_bexp b s) as cond. destruct cond; eapply IHx in H; simpl; rewrite <- Heqcond; rewrite H; reflexivity.
+unroll_ieval_com in H.
+remember (eval_bexp b s) as cond. destruct cond. eapply IHx in H; simpl; rewrite <- Heqcond; rewrite H; reflexivity.
+contradict H. discriminate.
 Qed.
 
 Lemma while_inf : forall x b c s1, (forall s, eval_bexp b s = true) -> ieval_com x (While b c) s1 = None.
 intro x.
-induction x.
-intros. simpl. reflexivity.
-intros. apply ieval_minus.
-unroll_ieval_com.
-assert (H2:=H).
-specialize H with (s:=s1). rewrite H.
-simpl.
-remember (ieval_com x c s1) as cond.
-destruct cond.
-specialize IHx with (b:=b) (c:=c) (s1:=s).
-apply IHx in H2. assumption.
+induction x; intros; [ crush | ..].
+apply ieval_minus. unroll_ieval_com. erewrite H. unroll_ieval_com.
+remember (ieval_com x c s1) as cond. destruct cond.
+eapply IHx. assumption.
 reflexivity.
 Qed.
 
