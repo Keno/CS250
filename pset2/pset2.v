@@ -354,14 +354,16 @@ Definition eq_aexp_dec (a1 a2:aexp) : {a1=a2} + {a1<>a2}.
 
 Fixpoint optimize_bexp (b: bexp) : bexp :=
   match b with
-   | Eq aa ab => match eq_aexp_dec (optimize_aexp aa) (optimize_aexp ab) with
-      | left P => Tt
-      | right p => Eq aa ab
-   end
-   | Lt aa ab => match eq_aexp_dec aa ab with
+   | Eq aa ab => let (aa', bb') := ((optimize_aexp aa),(optimize_aexp ab)) in
+     match eq_aexp_dec aa' bb'  with
+        | left P => Tt
+        | right p => Eq aa' bb'
+     end
+   | Lt aa ab => let (aa', bb') := ((optimize_aexp aa),(optimize_aexp ab)) in
+     match eq_aexp_dec aa' bb' with
       | left P => Ff
-      | right p => Lt aa ab 
-   end
+      | right p => Lt aa' bb' 
+     end
    | Not x => match (optimize_bexp x) with
       | Tt => Ff
       | Ff => Tt
@@ -396,12 +398,18 @@ remember (eq_aexp_dec (optimize_aexp a) (optimize_aexp a0)) as cond.
 destruct cond.
 rewrite aexpopt_correct at 1; rewrite e; rewrite <- aexpopt_correct at 1.
 remember (eval_aexp a0 s) as x. apply eqb_true.
-simpl. reflexivity.
+simpl. repeat rewrite <- aexpopt_correct. reflexivity.
 remember (eq_aexp_dec a a0) as cond.
 destruct cond.
 rewrite aexpopt_correct at 1; rewrite e; rewrite <- aexpopt_correct at 1.
-remember (eval_aexp a0 s) as x. apply ltb_false.
-simpl. reflexivity.
+remember (eval_aexp a0 s) as x. rewrite ltb_false.
+simpl eq_aexp_dec. remember (eq_aexp_dec (optimize_aexp a0) (optimize_aexp a0)) as cond2.
+destruct cond2. simpl. reflexivity.
+simpl. rewrite ltb_false. reflexivity.
+simpl. remember (eq_aexp_dec (optimize_aexp a) (optimize_aexp a0)) as cond.
+destruct cond.
+simpl. rewrite aexpopt_correct. rewrite e. rewrite <- aexpopt_correct. rewrite ltb_false. reflexivity.
+simpl. repeat rewrite <- aexpopt_correct. reflexivity.
 remember (optimize_bexp b1) as bb1.
 remember (optimize_bexp b2) as bb2.
 destruct bb1; solve[ simpl; reflexivity | destruct bb2; simpl; solve [ crush | rewrite andb_true_r; reflexivity | rewrite andb_false_r; reflexivity ] ].
