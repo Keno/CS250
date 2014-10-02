@@ -512,22 +512,14 @@ intros. rewrite bexp_opt_correct. rewrite H. simpl. reflexivity.
 Qed.
 
 Lemma ieval_minus : forall x c s, ieval_com (S x) c s = None -> ieval_com x c s = None.
-induction x; intros; [ simpl in H; destruct c; crush | .. ].
-destruct c. crush. crush.
-unroll_ieval_com in H.
-remember (ieval_com (S x) c1 s) as cond. destruct cond. simpl. eapply IHx in H.
-remember (ieval_com x c1 s) as cond2. destruct cond2.
-imagic. reflexivity.
-imagic. eapply IHx in Heqcond. unroll_ieval_com. rewrite Heqcond. reflexivity.
-unroll_ieval_com in H.
-remember (eval_bexp b s) as cond. destruct cond; eapply IHx in H; simpl; rewrite <- Heqcond; rewrite H; reflexivity.
-unroll_ieval_com in H.
-remember (eval_bexp b s) as cond. destruct cond. eapply IHx in H; simpl; rewrite <- Heqcond; rewrite H; reflexivity.
-contradict H. discriminate.
+intros.
+specialize ieval_plus with (n:=x) (m:=1) (c:=c) (s1:=s). intros.
+destruct (ieval_com x c s).
+assert(Some s0 = Some s0). reflexivity. eapply H0 with (m:=1) in H1.
+rewrite plus_comm in H1. simpl plus in H1. congruence. reflexivity.
 Qed.
 
 Lemma while_inf : forall x b c s1, (forall s, eval_bexp b s = true) -> ieval_com x (While b c) s1 = None.
-intro x.
 induction x; intros; [ crush | ..].
 apply ieval_minus. unroll_ieval_com. erewrite H. unroll_ieval_com.
 remember (ieval_com x c s1) as cond. destruct cond.
