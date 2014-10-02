@@ -392,32 +392,14 @@ Lemma ltb_false : forall x, NPeano.Nat.ltb x x = false.
 Qed.
 
 Lemma bexp_opt_correct : forall b s, eval_bexp b s = eval_bexp (optimize_bexp b) s.
-intros.
-induction b; crush.
-remember (eq_aexp_dec (optimize_aexp a) (optimize_aexp a0)) as cond.
-destruct cond.
-rewrite aexpopt_correct at 1; rewrite e; rewrite <- aexpopt_correct at 1.
-remember (eval_aexp a0 s) as x. apply eqb_true.
-simpl. repeat rewrite <- aexpopt_correct. reflexivity.
-remember (eq_aexp_dec a a0) as cond.
-destruct cond.
-rewrite aexpopt_correct at 1; rewrite e; rewrite <- aexpopt_correct at 1.
-remember (eval_aexp a0 s) as x. rewrite ltb_false.
-simpl eq_aexp_dec. remember (eq_aexp_dec (optimize_aexp a0) (optimize_aexp a0)) as cond2.
-destruct cond2. simpl. reflexivity.
-simpl. rewrite ltb_false. reflexivity.
-simpl. remember (eq_aexp_dec (optimize_aexp a) (optimize_aexp a0)) as cond.
-destruct cond.
-simpl. rewrite aexpopt_correct. rewrite e. rewrite <- aexpopt_correct. rewrite ltb_false. reflexivity.
-simpl. repeat rewrite <- aexpopt_correct. reflexivity.
-remember (optimize_bexp b1) as bb1.
-remember (optimize_bexp b2) as bb2.
-destruct bb1; solve[ simpl; reflexivity | destruct bb2; simpl; solve [ crush | rewrite andb_true_r; reflexivity | rewrite andb_false_r; reflexivity ] ].
-remember (optimize_bexp b1) as bb1.
-remember (optimize_bexp b2) as bb2.
-destruct bb1; solve[ simpl; reflexivity | destruct bb2; simpl; solve [ crush | rewrite andb_true_r; reflexivity | rewrite andb_false_r; reflexivity ] ].
-remember (optimize_bexp b) as bb.
-destruct bb; crush.
+intros. induction b; crush;
+try (remember (eq_aexp_dec (optimize_aexp a) (optimize_aexp a0)) as cond;
+destruct cond; [ simpl;
+rewrite aexpopt_correct at 1; rewrite e; rewrite <- aexpopt_correct at 1; try rewrite eqb_true; try rewrite ltb_false; reflexivity |
+simpl; repeat rewrite <- aexpopt_correct; reflexivity ]); [ .. | remember (optimize_bexp b) as bb; destruct bb; crush ];
+remember (optimize_bexp b1) as bb1; remember (optimize_bexp b2) as bb2;
+destruct bb1; solve[ simpl; reflexivity | destruct bb2; simpl; 
+       solve [ crush | rewrite andb_true_r; reflexivity | rewrite andb_false_r; reflexivity ] ].
 Qed.
 
 Fixpoint optimize_com (c:com) : com :=
