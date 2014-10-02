@@ -1,4 +1,3 @@
-(* Jao-ke Chin-Lee *)
 Require Import Bool Arith String List CpdtTactics.
 Require Import FunctionalExtensionality.
 Open Scope string_scope.
@@ -90,37 +89,6 @@ Inductive eval_com : com -> state -> state -> Prop :=
    terminate in that time, you should return None.  
 *)
 
-Fixpoint ieval_comm_help (fuel used:nat) (c:com) (s:state) {struct fuel} : option state * nat :=
-  match fuel with
-    | 0 => (None, used)
-    | S n =>
-      match c with
-        | Skip => (Some s, S used)
-        | Assign x a =>
-          let v := eval_aexp a s in
-          (Some (set x v s), S used)
-        | Seq c1 c2 =>
-          let '(s', used') := ieval_comm_help n used c1 s in
-          match s' with
-            | None => (None, used')
-            | Some s1 => ieval_comm_help (n-used') used' c2 s1
-          end
-        | If b c1 c2 =>
-          if eval_bexp b s then
-            ieval_comm_help n (S used) c1 s
-          else
-            ieval_comm_help n (S used) c2 s
-        | While b c =>
-          if eval_bexp b s then
-            ieval_comm_help n (S used) (While b c) s
-          else
-            (Some s, S used)
-      end
-  end.
-Fixpoint ieval_comm (fuel:nat) (c:com) (s:state) : option state :=
-  let '(res, _) := ieval_comm_help fuel 0 c s in
-  res.
-
 (* Prove that :
 
    eval_com c s1 s2 -> exists n, ieval_com n c s1 = Some s2.
@@ -155,97 +123,6 @@ Fixpoint ieval_comm (fuel:nat) (c:com) (s:state) : option state :=
    * replace (if Tt c1 else c2) with c1
    * replace (if Ff c1 else c2) with c2
 *)
-Definition op_id (op:binop) : aexp :=
-  match op with
-    | Plus | Minus => Const 0
-    | Times => Const 1
-  end.
-Fixpoint optimize_aexp (a:aexp) : aexp :=
-  match a with
-    | Binop a1 op a2 =>
-      let (a1', a2') := (optimize_aexp a1, optimize_aexp a2) in
-      match op with
-        | Minus => match a2' with Const 0 => a1' | _ => Binop a1' Minus a2' end
-        | Plus =>
-          match (a1', a2') with
-            | (Const 0, _) => a2'
-            | (_, Const 0) => a1'
-            | (_, _) => Binop a1' Plus a2'
-          end
-        | Times =>
-          match (a1', a2') with
-            | (Const 0, _) => Const 0
-            | (Const 1, _) => a2'
-            | (_, Const 0) => Const 0
-            | (_, Const 1) => a1'
-            | (_, _) => Binop a1' Times a2'
-          end
-      end
-    | _ => a
-  end.
-Fixpoint optimize_bexp (b:bexp) : bexp :=
-  match b with
-    | Eq a1 a2 =>
-      let (a1', a2') := (optimize_aexp a1, optimize_aexp a2) in
-      match (a1', a2') with
-        | (Const x, Const y) => if beq_nat x y then Tt else Ff
-        | (Var x, Var y) => if prefix x y && prefix y x then Tt else Ff
-        | (_,_) => Eq a1' a2'
-      end
-    | Lt a1 a2 =>
-      let (a1', a2') := (optimize_aexp a1, optimize_aexp a2) in
-      match (a1', a2') with
-        | (Const x, Const y) => if beq_nat x y then Ff else Tt
-        | (Var x, Var y) => if prefix x y && prefix y x then Ff else Tt
-        | (_,_) => Lt a1' a2'
-      end
-    | And b1 b2 =>
-      let (b1', b2') := (optimize_bexp b1, optimize_bexp b2) in
-      match (b1', b2') with
-        | (Tt, Tt) => Tt
-        | (Tt, Ff) | (Ff, Tt) | (Ff, Ff) => Ff
-        | _ => And b1' b2'
-      end
-    | Or b1 b2 =>
-      let (b1', b2') := (optimize_bexp b1, optimize_bexp b2) in
-      match (b1', b2') with
-        | (Tt, _) | (_, Tt) => Tt
-        | (Ff, Ff) => Ff
-        | _ => Or b1' b2'
-      end
-    | Not b' =>
-      let b'' := optimize_bexp b' in
-      match b' with
-        | Tt => Ff
-        | Ff => Tt
-        | _ => Not b''
-      end
-    | _ => b
-   end.
-Fixpoint optimize_com (c:com) : com :=
-  match c with
-    | Skip => Skip
-    | Assign x a => Assign x (optimize_aexp a)
-    | Seq c1 c2 =>
-      let (c1', c2') := (optimize_com c1, optimize_com c2) in
-      match c1' with
-        | Skip => c2'
-        | _ => match c2' with Skip => c1' | _ => Seq c1' c2' end
-      end
-    | If b c1 c2 =>
-      let b' := optimize_bexp b in
-      match b' with
-        | Tt => optimize_com c1
-        | Ff => optimize_com c2
-        | _ => If b (optimize_com c1) (optimize_com c2)
-      end
-    | While b c =>
-      let b' := optimize_bexp b in
-      match b' with
-        | Ff => Skip
-        | _ => While b' (optimize_com c)
-      end
-  end.
 
 (* Construct a proof that optimizing a program doesn't change its
    input/output behavior.  That is, show that if we start in state
