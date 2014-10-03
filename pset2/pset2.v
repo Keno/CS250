@@ -480,66 +480,13 @@ Fixpoint optimize_com (c:com) : com :=
 
 Lemma aopt_ok : forall e s, eval_aexp e s = eval_aexp (optimize_aexp e) s.
 Proof.
-  induction e; intros; [ crush | crush | .. ]; simpl optimize_aexp; destruct b; simpl.
-
-  remember (optimize_aexp e1) as e1'; destruct e1'; specialize IHe1 with (s:=s); specialize IHe2 with (s:=s).
-
-  destruct n. rewrite IHe1. rewrite <- IHe2. simpl. crush. (* or reflexivity instead of crush *)
-  remember (optimize_aexp e2) as e2'; destruct e2'.
-  destruct n0. rewrite <- IHe1. rewrite IHe2. simpl. crush.
-  simpl eval_aexp in *. rewrite IHe1. rewrite IHe2. omega.
-  simpl eval_aexp in *. rewrite IHe1. rewrite IHe2. omega.
-  simpl eval_aexp in *. rewrite IHe1. rewrite IHe2. omega.
-  
-  remember (optimize_aexp e2) as e2'; destruct e2'.
-  destruct n. rewrite IHe1. rewrite IHe2. simpl. omega.
-  simpl eval_aexp in *. rewrite IHe1. rewrite IHe2. omega.
-  simpl eval_aexp in *. rewrite IHe1. rewrite IHe2. omega.
-  simpl eval_aexp in *. rewrite IHe1. rewrite IHe2. omega.
-
-  remember (optimize_aexp e2) as e2'; destruct e2'.
-  destruct n. rewrite IHe1. rewrite IHe2. simpl. omega.
-  simpl eval_aexp in *. rewrite IHe1. rewrite IHe2. simpl. omega.
-  simpl eval_aexp in *. rewrite IHe1. rewrite IHe2. simpl. omega.
-  simpl eval_aexp in *. rewrite IHe1. rewrite IHe2. simpl. omega.
-
-  remember (optimize_aexp e1) as e1'; destruct e1'; specialize IHe1 with (s:=s); specialize IHe2 with (s:=s).
-
-  destruct n. rewrite IHe1. simpl. crush. (* or reflexivity instead of crush *)
-  remember (optimize_aexp e2) as e2'; destruct e2'.
-  destruct n. rewrite IHe1. rewrite IHe2. simpl. omega.
-  destruct n0. rewrite IHe1. rewrite IHe2. simpl. omega.
-  destruct n0. rewrite IHe1. rewrite IHe2. simpl. omega.
-
-  simpl eval_aexp in *. rewrite IHe1. rewrite IHe2. crush.
-  destruct n. rewrite IHe1. rewrite IHe2. simpl. omega.
-  simpl eval_aexp in *. rewrite IHe1. rewrite IHe2. crush.
-  destruct n. rewrite IHe1. rewrite IHe2. simpl. omega.
-  simpl eval_aexp in *. rewrite IHe1. rewrite IHe2. simpl. omega.
-
-  remember (optimize_aexp e2) as e2'; destruct e2'.
-  destruct n. rewrite IHe1. rewrite IHe2. simpl. omega.
-  destruct n. rewrite IHe1. rewrite IHe2. simpl. omega.
-
-  simpl eval_aexp in *. rewrite IHe1. rewrite IHe2. omega.
-  simpl eval_aexp in *. rewrite IHe1. rewrite IHe2. omega.
-  simpl eval_aexp in *. rewrite IHe1. rewrite IHe2. omega.
-  
-  remember (optimize_aexp e2) as e2'; destruct e2'.
-  destruct n. rewrite IHe1. rewrite IHe2. simpl. omega.
-  destruct n. rewrite IHe1. rewrite IHe2. simpl. omega.
-
-  simpl eval_aexp in *. rewrite IHe1. rewrite IHe2. reflexivity.
-  simpl eval_aexp in *. rewrite IHe1. rewrite IHe2. reflexivity.
-  simpl eval_aexp in *. rewrite IHe1. rewrite IHe2. reflexivity.
-
-  remember (optimize_aexp e2) as e2'; destruct e2'; specialize IHe1 with (s:=s); specialize IHe2 with (s:=s).
-
-  destruct n;
-  simpl eval_aexp in *. rewrite IHe1. rewrite IHe2. simpl. omega.
-  simpl eval_aexp in *. rewrite IHe1. rewrite IHe2. simpl. omega.
-  simpl eval_aexp in *. rewrite IHe1. rewrite IHe2. simpl. omega.
-  simpl eval_aexp in *. rewrite IHe1. rewrite IHe2. simpl. omega.
+  intros; induction e; [ crush | crush | .. ]; simpl optimize_aexp; destruct b; simpl;
+  try (remember (optimize_aexp e1) as e1'; destruct e1');
+  remember (optimize_aexp e2) as e2'; destruct e2';
+  rewrite IHe1; rewrite IHe2;
+  repeat (try destruct n; try destruct n0;
+          simpl;
+          try solve [ crush | omega ]).
 Qed.
 
 Lemma my_eq_refl : forall n, NPeano.Nat.eqb n n = true.
