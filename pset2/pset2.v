@@ -231,44 +231,30 @@ Qed.
    eval_com c s1 s2 -> exists n, ieval_com n c s1 = Some s2.
 
 *)
+
 Theorem if_eval_then_fuel : forall c s1 s2, eval_com c s1 s2 ->
                                             exists n, ieval_com n c s1 = Some s2.
 Proof.
-  intros.
-  induction H.
-  (* Skip *)
-  exists 1. crush.
-  (* Assign *)
-  exists 1. crush.
-  (* Seq *)
-  destruct IHeval_com1. destruct IHeval_com2.
-  specialize ieval_com_plus with (fuel:=x) (c:=c1) (s1:=s0) (s2:=s1).
-  intros. crush. specialize H4 with (more:=x0).
-  specialize ieval_com_plus with (fuel:=x0) (c:=c2) (s1:=s1) (s2:=s2).
-  intros. crush. specialize H5 with (more:=x).
-  rewrite plus_comm in H4.
-  exists (S (x0+x)).
-  simpl ieval_com. crush.
-  (* If-T *)
-  destruct IHeval_com.
-  exists (S x).
-  simpl ieval_com; crush.
-  (* If-F *)
-  destruct IHeval_com.
-  exists (S x).
-  simpl ieval_com. crush.
-  (* While-F *)
-  exists 1. crush.
-  (* While-T *)
-  destruct IHeval_com1. destruct IHeval_com2.
-  specialize ieval_com_plus with (fuel:=x) (c:=c) (s1:=s1) (s2:=s2).
-  intros. crush. specialize H5 with (more:=x0).
-  specialize ieval_com_plus with (fuel:=x0) (c:=(While b c)) (s1:=s2) (s2:=s3).
-  intros. crush. specialize H6 with (more:=x).
-  rewrite plus_comm in H5.
-  exists (S (S (x0+x))).
-  simpl ieval_com.
-  crush.
+  intros; induction H;
+
+  [ exists 1; crush | exists 1; crush | | | | exists 1; crush | ];
+  try (first [ remember c1 as cmd1; remember c2 as cmd2; (* Seq and While *)
+               remember s0 as sa; remember s1 as sb; remember s2 as sc
+             | remember c as cmd1; remember (While b c) as cmd2;
+               remember s1 as sa; remember s2 as sb; remember s3 as sc ];
+       destruct IHeval_com1; destruct IHeval_com2;
+       specialize ieval_com_plus with (fuel:=x) (c:=cmd1) (s1:=sa) (s2:=sb);
+       intro Hieval1;
+       first [ apply Hieval1 with (more:=x0) in H1; rewrite plus_comm in H1
+             | apply Hieval1 with (more:=x0) in H2; rewrite plus_comm in H2 ];
+       specialize ieval_com_plus with (fuel:=x0) (c:=cmd2) (s1:=sb) (s2:=sc);
+       intro Hieval2;
+       first [ apply Hieval2 with (more:=x) in H2
+             | rewrite Heqcmd1 in H3; rewrite <- Heqcmd2 in H3; apply Hieval2 with (more:=x) in H3 ]
+      );
+  try (destruct IHeval_com); (* If *)
+  [ exists (S (x0+x)) | exists (S x) | exists (S x) | exists (S (S (x0+x))) ];
+  simpl; crush.
 Qed.
 
 Theorem if_fuel_then_eval : forall n c s1 s2, ieval_com n c s1 = Some s2 ->
@@ -516,7 +502,7 @@ Qed.
 
 Ltac remember_cond name :=
   match goal with
-    | [ |- context[ (If ?c _ _)] ] => remember c as name
+    | [ |- context[ (If ?c _ _) ] ] => remember c as name
     | [ |- context[ (While ?c _) ] ] => remember c as name
   end.
 Ltac remember_seq c1name c2name:=
