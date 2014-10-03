@@ -480,14 +480,9 @@ Fixpoint optimize_com (c:com) : com :=
 
 Lemma aopt_ok : forall e s, eval_aexp e s = eval_aexp (optimize_aexp e) s.
 Proof.
-  induction e; intros; [ crush | crush | .. ]; simpl optimize_aexp; destruct b; simpl;
+  induction e; intros; [ crush | crush | .. ]; simpl optimize_aexp; destruct b; simpl.
 
-  remember (optimize_aexp e1) as e1'; destruct e1'; specialize IHe1 with (s:=s); specialize IHe2 with (s:=s);
-
-  try (destruct n);
-  remember (optimize_aexp e2) as e2'; destruct e2';
-  try (destruct n0);
-  rewrite IHe1; rewrite IHe2; simpl; try omega.
+  remember (optimize_aexp e1) as e1'; destruct e1'; specialize IHe1 with (s:=s); specialize IHe2 with (s:=s).
 
   destruct n. rewrite IHe1. rewrite <- IHe2. simpl. crush. (* or reflexivity instead of crush *)
   remember (optimize_aexp e2) as e2'; destruct e2'.
@@ -539,6 +534,7 @@ Proof.
   simpl eval_aexp in *. rewrite IHe1. rewrite IHe2. reflexivity.
 
   remember (optimize_aexp e2) as e2'; destruct e2'; specialize IHe1 with (s:=s); specialize IHe2 with (s:=s).
+
   destruct n;
   simpl eval_aexp in *. rewrite IHe1. rewrite IHe2. simpl. omega.
   simpl eval_aexp in *. rewrite IHe1. rewrite IHe2. simpl. omega.
@@ -672,110 +668,23 @@ Proof.
   simpl optimize_com;
   remember (optimize_bexp b) as b'; destruct b';
   [ | specialize bopt_ok with (e:=b) (s:=s1); intros;
-      rewrite <- Heqb' in H2; simpl in H2; contradict H; crush | .. ].
-
-  remember_cond bnew.
-  apply Eval_while_true with (b:=bnew) (c:=(optimize_com c)) (s1:=s1) (s2:=s2) (s3:=s3).
-  specialize bopt_ok with (e:=b) (s:=s1). intro Hopt_eq.
-  rewrite H in Hopt_eq. rewrite <- Heqb' in Hopt_eq.
-  apply eq_sym in Hopt_eq. assumption.
-  assumption.
-  eapply if_eval_then_fuel in IHeval_com2.
-  destruct IHeval_com2.
-  assert (exists x1, x = S x1).
-  induction x. contradict H2. crush. exists x. reflexivity.
-  destruct H3.
-  simpl in H2.
-  rewrite <- Heqb' in H2.
-  rewrite Heqbnew in H2.
-  eapply if_fuel_then_eval with (n:=x).
-  rewrite Heqbnew. assumption.
-
-  remember_cond bnew.
-  apply Eval_while_true with (b:=bnew) (c:=(optimize_com c)) (s1:=s1) (s2:=s2) (s3:=s3).
-  specialize bopt_ok with (e:=b) (s:=s1). intro Hopt_eq.
-  rewrite H in Hopt_eq. rewrite <- Heqb' in Hopt_eq.
-  apply eq_sym in Hopt_eq. assumption.
-  assumption.
-  eapply if_eval_then_fuel in IHeval_com2.
-  destruct IHeval_com2.
-  assert (exists x1, x = S x1).
-  induction x. contradict H2. crush. exists x. reflexivity.
-  destruct H3.
-  simpl in H2.
-  rewrite <- Heqb' in H2.
-  rewrite Heqbnew in H2.
-  eapply if_fuel_then_eval with (n:=x).
-  rewrite Heqbnew. assumption.
-
-  remember_cond bnew.
-  apply Eval_while_true with (b:=bnew) (c:=(optimize_com c)) (s1:=s1) (s2:=s2) (s3:=s3).
-  specialize bopt_ok with (e:=b) (s:=s1). intro Hopt_eq.
-  rewrite H in Hopt_eq. rewrite <- Heqb' in Hopt_eq.
-  apply eq_sym in Hopt_eq. assumption.
-  assumption.
-  eapply if_eval_then_fuel in IHeval_com2.
-  destruct IHeval_com2.
-  assert (exists x1, x = S x1).
-  induction x. contradict H2. crush. exists x. reflexivity.
-  destruct H3.
-  simpl in H2.
-  rewrite <- Heqb' in H2.
-  rewrite Heqbnew in H2.
-  eapply if_fuel_then_eval with (n:=x).
-  rewrite Heqbnew. assumption.
-
-
-  remember_cond bnew.
-  apply Eval_while_true with (b:=bnew) (c:=(optimize_com c)) (s1:=s1) (s2:=s2) (s3:=s3).
-  specialize bopt_ok with (e:=b) (s:=s1). intro Hopt_eq.
-  rewrite H in Hopt_eq. rewrite <- Heqb' in Hopt_eq.
-  apply eq_sym in Hopt_eq. assumption.
-  assumption.
-  eapply if_eval_then_fuel in IHeval_com2.
-  destruct IHeval_com2.
-  assert (exists x1, x = S x1).
-  induction x. contradict H2. crush. exists x. reflexivity.
-  destruct H3.
-  simpl in H2.
-  rewrite <- Heqb' in H2.
-  rewrite Heqbnew in H2.
-  eapply if_fuel_then_eval with (n:=x).
-  rewrite Heqbnew. assumption.
-
-  remember_cond bnew.
-  apply Eval_while_true with (b:=bnew) (c:=(optimize_com c)) (s1:=s1) (s2:=s2) (s3:=s3).
-  specialize bopt_ok with (e:=b) (s:=s1). intro Hopt_eq.
-  rewrite H in Hopt_eq. rewrite <- Heqb' in Hopt_eq.
-  apply eq_sym in Hopt_eq. assumption.
-  assumption.
-  eapply if_eval_then_fuel in IHeval_com2.
-  destruct IHeval_com2.
-  assert (exists x1, x = S x1).
-  induction x. contradict H2. crush. exists x. reflexivity.
-  destruct H3.
-  simpl in H2.
-  rewrite <- Heqb' in H2.
-  rewrite Heqbnew in H2.
-  eapply if_fuel_then_eval with (n:=x).
-  rewrite Heqbnew. assumption.
-
-  remember_cond bnew.
-  apply Eval_while_true with (b:=bnew) (c:=(optimize_com c)) (s1:=s1) (s2:=s2) (s3:=s3).
-  specialize bopt_ok with (e:=b) (s:=s1). intro Hopt_eq.
-  rewrite H in Hopt_eq. rewrite <- Heqb' in Hopt_eq.
-  apply eq_sym in Hopt_eq. assumption.
-  assumption.
-  eapply if_eval_then_fuel in IHeval_com2.
-  destruct IHeval_com2.
-  assert (exists x1, x = S x1).
-  induction x. contradict H2. crush. exists x. reflexivity.
-  destruct H3.
-  simpl in H2.
-  rewrite <- Heqb' in H2.
-  rewrite Heqbnew in H2.
-  eapply if_fuel_then_eval with (n:=x).
-  rewrite Heqbnew. assumption.
+      rewrite <- Heqb' in H2; simpl in H2; contradict H; crush | .. ];
+  remember_cond bnew;
+  apply Eval_while_true with (b:=bnew) (c:=(optimize_com c)) (s1:=s1) (s2:=s2) (s3:=s3);
+  specialize bopt_ok with (e:=b) (s:=s1); intro Hopt_eq;
+  rewrite H in Hopt_eq; rewrite <- Heqb' in Hopt_eq;
+  apply eq_sym in Hopt_eq; try assumption;
+  eapply if_eval_then_fuel in IHeval_com2;
+  destruct IHeval_com2;
+  assert (exists x1, x = S x1);
+  repeat solve
+         [  induction x; [ contradict H2; crush | exists x; reflexivity ]
+          | destruct H3;
+            simpl in H2;
+            rewrite <- Heqb' in H2;
+            rewrite Heqbnew in H2;
+            eapply if_fuel_then_eval with (n:=x);
+            rewrite Heqbnew; assumption ].
 Qed.
 
 (* Hints:
