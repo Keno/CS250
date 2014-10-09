@@ -91,6 +91,25 @@ Definition prog1 :=
 
 Definition prog2 := While Tt Skip.
 
+Ltac myinj H := injection H ; intros ; subst ; clear H.
+
+Lemma while_true_imp_false : forall c s1 s2, eval_com c s1 s2 -> 
+                                             forall b c', (forall s, eval_bexp b s = true) -> 
+                                                          c = While b c' -> 
+                                                          False. 
+Proof.
+  Ltac foo := 
+  match goal with 
+    | [ H : ?x _ _ = ?x _ _ |- _ ] => myinj H
+    | [ H : forall s, eval_bexp _ s = _,
+        H' : eval_bexp _ ?s0 = _ |- _] => 
+      specialize (H s0) ; congruence
+    | [ H : forall b c, _ -> _ |- _ ] => eapply H ; eauto
+  end.
+
+  induction 1 ; intros ; try discriminate ; repeat foo.
+Qed.
+  
 Lemma prog2_div : forall s1 s2, eval_com prog2 s1 s2 -> False.
 
   Lemma prog2_div' : forall c s1 s2, eval_com c s1 s2 -> c = prog2 -> False.
@@ -179,8 +198,10 @@ Lemma assign_comm :
     contains x ay = false -> 
     contains y ax = false -> 
     x <> y -> 
-    forall s3, eval_com (Seq (Assign y ay) (Assign x ax)) s1 s3 -> 
+    forall s3, eval_com (Seq (Assign y ay) (Assign x ax)) s1 s3 -> s2 = s3.
+(*
                forall z, get z s3 = get z s2.
+*)
 Proof.
   intros.
   repeat eval_inv.
