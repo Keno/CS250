@@ -237,7 +237,8 @@ Definition sort_corr (xs ys:list nat) : Prop :=
 
      (sort_corr xs ys) -> (sort_corr xs zs) -> ys = zs
 
-   which can be proven from the spec above.  
+   which *cannot* be proven from the spec above (and in 
+   fact is not true.)  
 *)
 
 (* Let's prove now that our insertion sort is correct,
@@ -516,5 +517,7 @@ Eval compute in merge_sort [3;2;7;8].
     c. length xs = (sum of the lengths of the lists in make_lists xs)
 
 5.  Show that sort_corr xs (merge_sort xs)
+
+6.  Define a better definition of correctness for sorts (sort_corr').
 
 *)
