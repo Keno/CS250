@@ -612,8 +612,70 @@ Proof.
   split.
   Admitted.
 
-Theorem merge_pairs_ok_sorted : forall xs, list_all sorted xs -> list_all sorted (merge_pairs xs).
+Lemma merge_pairs_ok_sorted_even : forall k n, n = k + k ->
+                                               (forall xs, length xs = n -> list_all sorted xs
+                                                           -> list_all sorted (merge_pairs xs)).
+Proof.
+(*  induction k.
+
+  crush.
+  Lemma empty_list : forall A (xs:list A), length xs = 0 -> xs = [].
+  Proof.
+    intro A.
+    induction xs; crush.
+  Qed.
+  specialize empty_list with (xs:=xs). intros. apply H in H0.
+  crush.
+
+  Lemma even_list : forall A k n (xs:list A), n = (S k) + (S k) -> length xs = n ->
+                                              exists a a0 t, xs = a::a0::t -> length t >= 0.
+  Proof.
+    intro A.
+    induction k.
+    crush.
+    Admitted.*)
   Admitted.
+
+Lemma merge_pairs_ok_sorted_odd : forall k n, n = k + k + 1 ->
+                                              (forall xs, length xs = n -> list_all sorted xs
+                                                          -> list_all sorted (merge_pairs xs)).
+Admitted.
+
+Lemma even_or_odd_help : forall n, exists k1 k2, (n = k1+k1 \/ n = k1+k1+1) /\ (n+1 = k2+k2 \/ n+1 = k2+k2+1).
+Proof.
+  induction n.
+  exists 0. exists 0. crush.
+  destruct IHn.
+  destruct H. destruct H.
+  exists x0. exists (x+1).
+  crush.
+Qed.
+
+Lemma even_or_odd : forall n, exists k, n=k+k \/ n=k+k+1.
+Proof.
+  intros.
+  specialize even_or_odd_help with (n:=n). intros.
+  destruct H. destruct H.
+  exists x.
+  crush.
+Qed.
+
+Theorem merge_pairs_ok_sorted : forall xs, list_all sorted xs -> list_all sorted (merge_pairs xs).
+  Lemma merge_pairs_ok_sorted_n : forall n xs, length xs = n -> list_all sorted xs
+                                               -> list_all sorted (merge_pairs xs).
+  Proof.
+    intro n.
+    specialize even_or_odd with (n:=n).
+    intros. destruct H.
+    destruct H.
+    apply merge_pairs_ok_sorted_even with (n:=n) (k:=x); assumption.
+    apply merge_pairs_ok_sorted_odd with (n:=n) (k:=x); assumption.
+  Qed.
+  induction xs.
+  crush.
+  apply merge_pairs_ok_sorted_n with (n:=(length (a::xs))).
+  reflexivity.
+Qed.
 
 Definition sum_lengths (xs:list (list nat)) : nat :=
   fold_right (fun x n => n + length x) 0 xs.
@@ -736,3 +798,7 @@ Qed.
 
 *)
 
+Require Import Sorting.Permutation.
+
+Definition sort_corr' (xs ys:list nat) : Prop :=
+  sorted ys /\ Permutation xs ys.
