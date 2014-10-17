@@ -585,7 +585,21 @@ Qed.
         (x is in one of the lists in merge_pairs xs)
 *)
 
-Fixpoint to_pairs (xs:list (list nat)) : list (prod (list nat) (list nat)):=
+(*Function to_pairs (xs:list (list nat)) : prod (list (prod (list nat) (list nat))) (option (list nat)) :=
+  match xs with
+    | [] => ([], None)
+    | h::[] => ([], Some h)
+    | h1::h2::t => ((h1,h2)::(fst (to_pairs t)), snd (to_pairs t))
+  end.
+
+Function merge_pairs' (xs:prod (list (prod (list nat) (list nat))) (option (list nat))) : list (list nat) :=
+  match xs with
+    | ([], None) => []
+    | ([], Some xs') => [xs']
+    | ((h1,h2)::t, last) => (merge h1 h2)::(merge_pairs' (t, last))
+  end.*)
+
+(*Fixpoint to_pairs (xs:list (list nat)) : list (prod (list nat) (list nat)):=
   match xs with
     | h1::h2::t => (h1,h2)::(to_pairs t)
     | xs'::_ => [(xs', [])]
@@ -658,10 +672,27 @@ Proof.
   destruct H. destruct H.
   exists x.
   crush.
+Qed.*)
+
+Lemma merge_pairs_ok_sorted' : forall xs, (list_all sorted xs -> list_all sorted (merge_pairs xs)) /\ (forall a, list_all sorted (a::xs) -> list_all sorted (merge_pairs (a::xs))).
+Proof.
+  induction xs.
+  crush.
+  split; destruct IHxs.
+  apply H0 with (a:=a).
+  intros.
+  simpl.
+  destruct H1. destruct H2.
+  apply H in H3.
+  split; [ | assumption ].
+  apply merge_ok_sorted; assumption.
 Qed.
 
 Theorem merge_pairs_ok_sorted : forall xs, list_all sorted xs -> list_all sorted (merge_pairs xs).
-  Lemma merge_pairs_ok_sorted_n : forall n xs, length xs = n -> list_all sorted xs
+  intros.
+  apply merge_pairs_ok_sorted'. assumption.
+Qed.
+(*  Lemma merge_pairs_ok_sorted_n : forall n xs, length xs = n -> list_all sorted xs
                                                -> list_all sorted (merge_pairs xs).
   Proof.
     intro n.
@@ -675,7 +706,7 @@ Theorem merge_pairs_ok_sorted : forall xs, list_all sorted xs -> list_all sorted
   crush.
   apply merge_pairs_ok_sorted_n with (n:=(length (a::xs))).
   reflexivity.
-Qed.
+Qed.*)
 
 Definition sum_lengths (xs:list (list nat)) : nat :=
   fold_right (fun x n => n + length x) 0 xs.
