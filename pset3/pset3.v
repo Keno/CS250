@@ -714,11 +714,44 @@ Definition sum_lengths (xs:list (list nat)) : nat :=
 Definition in_any x (xs:list (list nat)) : Prop :=
   fold_right (fun h b => (In x h) \/ b) False xs.
 
+Lemma merge_pairs_ok_len' : forall xs, (sum_lengths xs = sum_lengths (merge_pairs xs)) /\ (forall a, sum_lengths (a::xs) = sum_lengths (merge_pairs (a::xs))).
+Proof.
+  induction xs.
+  crush.
+  split; destruct IHxs.
+  apply H0 with (a:=a).
+  intros.
+  simpl.
+  specialize merge_ok_len with (xs:=a0) (ys:=a).
+  crush.
+Qed.
+
 Theorem merge_pairs_ok_len : forall xs, sum_lengths xs = sum_lengths (merge_pairs xs).
-Admitted.
+Proof.
+  intros.
+  apply merge_pairs_ok_len'.
+Qed.
+
+Lemma merge_pairs_ok_subset' : forall x xs, (in_any x xs <-> in_any x (merge_pairs xs)) /\ (forall a, in_any x (a::xs) <-> in_any x (merge_pairs (a::xs))).
+Proof.
+  induction xs.
+  crush.
+  split; destruct IHxs.
+  apply H0 with (a:=a).
+  intros.
+  simpl.
+  rewrite H.
+  specialize merge_ok_subset with (x:=x) (xs:=a0) (ys:=a).
+  intros.
+  rewrite <- H1.
+  crush.
+Qed.
 
 Theorem merge_pairs_ok_subset : forall x xs, in_any x xs <-> in_any x (merge_pairs xs).
-Admitted.
+Proof.
+  intros.
+  apply merge_pairs_ok_subset'.
+Qed.
 
 (*
 3. Show that
