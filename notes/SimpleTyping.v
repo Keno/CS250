@@ -171,5 +171,111 @@ Definition inc_seven : exp nil Nat_t := App inc seven.
    that can cause a cycle).  
 
 *)
-   
-      
+  
+
+(* It's not very convenient to write the explicitly typed terms.
+   So let's write down a surface-level language which doesn't
+   require the context and type every where, and then build an
+   elaborator (type-checker) which type-checks the code and
+   tries to build the explicitly-typed term for us.  *)
+
+(* Syntax for our surface language. *)
+Inductive ubinop : Type := 
+  | UPlus | UMinus | UTimes | UEq | ULt.
+
+Inductive uexp : Type := 
+| UNum : nat -> uexp
+| UBool : bool -> uexp
+| UIf : uexp -> uexp -> uexp -> uexp
+| UBinop : uexp -> ubinop -> uexp -> uexp
+| UVar : var -> uexp
+| ULam : var -> type -> uexp -> uexp
+| UApp : uexp -> uexp -> uexp.
+
+
+(* Our elaborator might fail because the code might not type-check.
+   So we'll use an option monad everywhere.  
+
+   In addition, we need to return a dependent pair of a type t and
+   an expression of that given type.
+*)
+Definition Return {G} {t:type} (e:exp G t) : option { t : type & exp G t} := 
+  Some (existT _ t e).
+
+Definition Bind {A B} (c:option A) (f:A -> option B) : option B := 
+  match c with 
+    | None => None
+    | Some v => f v
+  end.
+
+Notation "'ret' e" := (Return e) (at level 75).
+Notation "x <- c ; f" := (Bind c (fun x => f))
+  (right associativity, at level 84, c1 at next level).
+Notation "[ x , y ] <-- c ; f" := 
+  (Bind c (fun x => let (x,y) := x in f))
+  (right associativity, at level 84, c1 at next level).
+
+Definition error {A} : option A := None.
+
+Definition type_eq_dec : forall (t1 t2:type), {t1 = t2} + {t1 <> t2}.
+  decide equality.
+Qed.
+
+Definition coerce_exp {G t1 t2} (H: t1 = t2) (e: exp G t1) : exp G t2.
+  intros. subst. apply e.
+Defined.
+
+Definition try_coerce {G t1} t2 (e:exp G t1) : option (exp G t2) := 
+  match type_eq_dec t1 t2 with 
+    | left H => Some (coerce_exp H e)
+    | _ => None
+  end.
+
+Lemma some_not_none {A} {G : env_t A} {v:A} {x:var} : 
+  Some v = lookup G x -> lookup G x <> None.
+Proof. 
+  intros. rewrite <- H. discriminate.
+Qed.
+
+Fixpoint elaborate (G:env_t type) (u:uexp) : option { t : type & exp G t } :=
+  match u with 
+    | UNum n => ret Num n
+    | UBool b => ret Bool b
+    | UIf u1 u2 u3 => 
+      [t1,e1] <-- elaborate G u1 ;
+      [t2,e2] <-- elaborate G u2 ; 
+      [t3,e3] <-- elaborate G u3 ; 
+      e1' <- try_coerce Bool_t e1 ; 
+      e2' <- try_coerce t3 e2 ; 
+      ret If e1' e2' e3
+    | UBinop u1 b u2 => 
+      [t1,e1] <-- elaborate G u1 ; 
+      [t2,e2] <-- elaborate G u2 ; 
+      e1' <- try_coerce Nat_t e1 ; 
+      e2' <- try_coerce Nat_t e2 ; 
+      match b with 
+        | UPlus => ret Binop e1' Plus_op e2'
+        | UMinus => ret Binop e1' Minus_op e2'
+        | UTimes => ret Binop e1' Times_op e2'
+        | UEq => ret Binop e1' Eq_op e2'
+        | ULt => ret Binop e1' Lt_op e2'
+      end
+    | UVar x => match lookup G x as p return (p = lookup G x) -> _ with 
+                  | None => fun _ => error
+                  | Some t => fun H => ret Var x (some_not_none H)
+                end eq_refl
+    | ULam x t1 u => 
+      [t2,e] <-- elaborate ((x,t1)::G) u ; 
+      ret Lam x t1 e
+    | UApp u1 u2 => 
+      [t1,e1] <-- elaborate G u1 ; 
+      [t2,e2] <-- elaborate G u2 ; 
+      match t1 return exp G t1 -> option { t : type & exp G t} with 
+        | Arrow_t ta tb => 
+          fun e1' => 
+            e2' <- try_coerce ta e2 ; 
+            ret App e1' e2'
+        | _ => fun _ => error
+      end e1
+  end.
+

@@ -48,14 +48,92 @@ Definition eval_binop(b:binop)(v1 v2:value) : answer :=
     | _, _, _ => TypeError 
   end.
 
-Definition is_value(a:answer) : Prop := 
-  match a with | Value _ => True | _ => False end.
-Definition is_lambda(v:value) : Prop := 
-  match v with | Lam_v _ _ _ => True | _ => False end.
-Definition is_bool(v:value) : Prop := 
-  match v with | Bool_v _ => True | _ => False end.
+Module YOU_DONT_WANT_TO_DO_THIS.
 
-(** * A (not quite) Denotational Semantics *)
+  (* Writing an evaluator attempt #1: *)
+  Definition eval(eval: exp -> env_t value -> answer)(e:exp)(env:env_t value) :
+    answer := 
+    match e with 
+      | Var_e x => match lookup env x with 
+                     | None => TypeError 
+                     | Some v => Value v
+                   end
+      | Lam_e x e => Value (Lam_v env x e)
+      | App_e e1 e2 => 
+        match eval e1 env with 
+          | Value v1 => 
+            match eval e2 env with 
+              | Value v2 => 
+                match v1 with 
+                    | Lam_v env' x e' => eval e' ((x,v2)::env')
+                    | _ => TypeError
+                end
+              | _ => TypeError
+            end
+          | _ => TypeError
+        end
+      | Num_e n => Value (Num_v n)
+      | Binop_e b e1 e2 => 
+        match eval e1 env with 
+          | Value v1 => 
+            match eval e2 env with 
+              | Value v2 => eval_binop b v1 v2
+              | _ => TypeError
+            end
+          | _ => TypeError
+        end
+      | Bool_e b => Value (Bool_v b)
+      | If_e e1 e2 e3 => 
+        match eval e1 env with 
+          | Value v1 => 
+            match v1 with 
+              | Bool_v b => if b then eval e2 env else eval e3 env
+              | _ => TypeError 
+            end
+          | _ => TypeError
+        end
+    end.
+    (* There are two issues with this evaluator.  First, we have
+       to do pattern matching all over the place just to tell when
+       we have a [Value] versus a [TypeError].  In general, we have
+       a pattern of the form:
+
+           match e with 
+           | Value v => <do-some-stuff-to-v>
+           | TypeError => TypeError
+           end
+
+       that we are using over and over again.  We can factor this
+       pattern out by using a higher-order function:
+
+          bind e f := 
+             match e with 
+             | Value v => f v
+             | TypeError => TypeError
+             end
+
+       Then instead of the match above, we can write:
+
+          bind e (fun v => <do-some-stuff-to-v>)
+
+       Even better, we can define some notation so that:
+
+          v <- e ; <do-some-stuff-to-v>
+
+       is shorthand for the bind above.  You can read this
+       as being similar to ML-style "let" expressions where
+       we are binding a variable v to the value of an expression
+       e (if it exists) and then executing <do-some-stuff-to-v>.
+       If e returns a TypeError, then we simply return TypeError
+       for the whole expression.  This is an instance of a more
+       general pattern called a monad that we will see again and
+       again in functional code.  Higer-order functions FTW!
+    *)
+
+End YOU_DONT_WANT_TO_DO_THIS.
+
+(** Now we can attempt to rewrite our [eval] using the monadic
+    syntax introduced above. *)
 Module OH_HOW_I_WISH_WE_COULD_USE_THIS.
   (** We'll begin by defining a monad where the results are always answers. *)
   Definition Ret(v:value) : answer := Value v.
@@ -113,9 +191,9 @@ Module OH_HOW_I_WISH_WE_COULD_USE_THIS.
         the logic inconsistent. *)
     Definition omega : False := ffix (fun f : unit -> False => f) tt.
 
-    (** Even if we limited [ffix] to operating over Type (instead of Type),
+    (** Even if we limited [ffix] to operating over Set (instead of Type),
         the problem doesn't go away. *)
-    Inductive void : Type := .
+    Inductive void : Set := .
     Definition omega' : void := ffix (fun f : unit -> void => f) tt.
     Definition oops : False := match omega' with end.
 
@@ -126,7 +204,7 @@ Module OH_HOW_I_WISH_WE_COULD_USE_THIS.
 End OH_HOW_I_WISH_WE_COULD_USE_THIS.
 
 (** We're going to use the Haskell-like approach, but instead of producing
-    values, we'll produce computations.  A computation is simply a way to
+    values, we'll produce "computations."  A computation is simply a way to
     reify the monad, except that we'll add an extra case for "delayed"
     expressions that we haven't bothered to compile yet.  This will allow
     us to break the cycle in our semantics, at the price of needing an
@@ -140,6 +218,12 @@ Inductive comp :=
 | Ret : answer -> comp
 | Bind : comp -> (value -> comp) -> comp
 | Delay : exp -> list (var * value) -> comp.
+
+(** You should think of [Delay] as a kind of closure where we have
+    some expression [e] to evaluate within an environment [env].  
+    You can also think of [Delay] as an intermediate state in a 
+    computation.  
+*)
 
 Notation "'ret' x" := (Ret (Value x)) (at level 75) : comp_scope.
 Notation "x <- c1 ; c2" := (Bind c1 (fun x => c2))
@@ -196,16 +280,25 @@ Fixpoint compile (e:exp) (env:env_t value) : comp :=
 
 (** A Big-Step Operational Semantics for Computations *)
 Inductive run : comp -> answer -> Prop := 
+  (* to run [Ret a], just return a. *)
 | run_Ret : forall a, run (Ret a) a
+  (* to run [Delay env e], call the compiler on [e] to get a
+     computation [c], and then continue by running [c]. *)
 | run_Delay : forall env e v, 
                 run (compile e env) v -> run (Delay e env) v
+  (* to run [Bind c f], run [c] -- if it results in a [Value],
+     then apply [f] to the value to get a new computation, and
+     continue with that.  If running [c] results in a type error,
+     then just return TypeError. *)
 | run_Bind_value : forall c f v a, 
                      run c (Value v) -> run (f v) a -> run (Bind c f) a
 | run_Bind_typeerror : forall c f, 
                          run c TypeError -> run (Bind c f) TypeError.
 Hint Constructors run.
 
-(** A Small-Step Operational Semantics *)
+(** A Small-Step Operational Semantics -- this is the same as
+    the above, but takes one computation to the next instead of
+    running sub-computations recursively. *)
 Inductive step : comp -> comp -> Prop := 
 | step_Delay : forall env e, step (Delay e env) (compile e env)
 | step_Bind_value : forall f v, step (Bind (Ret (Value v)) f) (f v)
@@ -214,12 +307,15 @@ Inductive step : comp -> comp -> Prop :=
 Hint Constructors step.
 
 (** And we can define the steps relations as the reflexive, transitive
-      closure of the (one-step) step relation. *)
+      closure of the (one-step) step relation.  Intuitively, [run c a] is
+      equivalent to [steps c (Ret a)]
+*)
 Require Import Relation_Operators.
 Definition steps := clos_refl_trans comp step.
 Hint Constructors clos_refl_trans.
 
-(** Alternatively, we can define a step function. *)
+(** Alternatively, we can define a step function. And intuitively,
+    [step c1 c2] holds iff [step_fn c1 = inl c2].  *)
 Implicit Arguments inl [A B].
 Implicit Arguments inr [A B].
 Fixpoint step_fn(c:comp) : comp + answer := 
@@ -239,7 +335,8 @@ Notation "c1 '==>*' c2" := (steps c1 c2) (at level 80) : evals_scope.
 Local Open Scope evals_scope.
 
 (** Two different notions of evaluation -- [evals1] uses the big-step
-      semantics, and [evals2] uses the small-step semantics. *)
+      semantics, and [evals2] uses the small-step semantics.  How would
+      you define an evals3 using [step_fn]?  *)
 Definition evals1 (env:env_t value) (e:exp) (a:answer) := run (compile e env) a.
 Definition evals2 (env:env_t value) (e:exp) (a:answer) := 
   (compile e env) ==>* (Ret a).
@@ -258,6 +355,7 @@ Inductive type : Type :=
 
 Reserved Notation "G |-- e ; t" (at level 80).  
 
+(** Typing rules for our expressions *)
 Inductive hasType : env_t type -> exp -> type -> Prop := 
 | Var_ht : forall G x t, 
     lookup G x = Some t -> 
