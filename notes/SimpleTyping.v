@@ -64,6 +64,9 @@ Definition binopDenote {t1 t2 t3} (b:binop t1 t2 t3) :
    ways, this is quite similar to our typing rules for the untyped
    calculus.  But here, we're simply preventing you from building
    an [exp] unless it's well-typed. 
+
+   Another key distinction -- notice that [exp] lives in [Type],
+   whereas the [hasType] lived in [Prop].  
 *)
 Inductive exp : env_t type -> type -> Type := 
 | Num : forall G (n:nat), exp G Nat_t
@@ -81,6 +84,9 @@ Inductive exp : env_t type -> type -> Type :=
 
 (* Map an environment [(x1,t1);(x2,t2);...;(xn,tn)] to a tuple-type
    of the form [(tDenote t1)*(tDenote t2)*...*(tDenote tn)*unit].
+
+   For instance, if our environment is [("x",Nat_t); ("y",Bool_t)] then
+   [envDenote] will produce [nat * (bool * unit)].
 *)
 Fixpoint envDenote (G:env_t type) : Type := 
   match G with 
@@ -145,7 +151,7 @@ Eval compute in eval seven.
 Definition inc : exp nil (Arrow_t Nat_t Nat_t).
   refine (Lam "x" Nat_t (Binop _ Plus_op (Num 1))).
   refine (Var "x" _).
-  simpl ; discriminate.
+  simpl. discriminate.
 Defined.
 Eval compute in eval inc.
 
@@ -196,9 +202,36 @@ Inductive uexp : Type :=
 (* Our elaborator might fail because the code might not type-check.
    So we'll use an option monad everywhere.  
 
-   In addition, we need to return a dependent pair of a type t and
-   an expression of that given type.
+   In addition, we need to return a dependent pair of a [type] t and
+   an expression of that given type.  The notation:
+
+     { x : A & T[x] }
+
+   is the type of such a dependent pair.  For example, we could have:
+
+     Definition pair_t := { x : bool & if x then nat else string }.
+
+   which would conceptually be pairs of either true and a nat, or
+   false and a string.
+
+   These are usually called "sigma" types and notated \sigma x:A.T[x].  
+
+   In Coq, the way you build such a pair is by using the [existT]
+   constructor.  For example, to build something of type [pair_t] we
+   would write:
+
+     Definition foo : pair_t := 
+        existT (fun (b:bool) => if b then nat else string) true 42.
+
+   Notice that the [existT] takes a function that describes the type
+   of the second component in terms of the value of the first.  Often,
+   Coq can figure out that function from context and we can simply 
+   omit it in favor of an underscore:
+
+     Definition foo : pair_t := existT _ true 42.
 *)
+
+(* This definition takes care of packaging up [G], [t], and [e] for us. *)
 Definition Return {G} {t:type} (e:exp G t) : option { t : type & exp G t} := 
   Some (existT _ t e).
 
@@ -211,6 +244,17 @@ Definition Bind {A B} (c:option A) (f:A -> option B) : option B :=
 Notation "'ret' e" := (Return e) (at level 75).
 Notation "x <- c ; f" := (Bind c (fun x => f))
   (right associativity, at level 84, c1 at next level).
+
+(* This notation is much simpler than writing:
+
+       p <- c ; 
+       match x with 
+       | existT t e => f t e
+       end
+
+    which is what we need when we want to work with one of the
+    dependent pairs { t : type & exp G t }.
+*)
 Notation "[ x , y ] <-- c ; f" := 
   (Bind c (fun x => let (x,y) := x in f))
   (right associativity, at level 84, c1 at next level).
@@ -219,7 +263,7 @@ Definition error {A} : option A := None.
 
 Definition type_eq_dec : forall (t1 t2:type), {t1 = t2} + {t1 <> t2}.
   decide equality.
-Qed.
+Defined.
 
 Definition coerce_exp {G t1 t2} (H: t1 = t2) (e: exp G t1) : exp G t2.
   intros. subst. apply e.
@@ -235,7 +279,7 @@ Lemma some_not_none {A} {G : env_t A} {v:A} {x:var} :
   Some v = lookup G x -> lookup G x <> None.
 Proof. 
   intros. rewrite <- H. discriminate.
-Qed.
+Defined.
 
 Fixpoint elaborate (G:env_t type) (u:uexp) : option { t : type & exp G t } :=
   match u with 
@@ -279,3 +323,33 @@ Fixpoint elaborate (G:env_t type) (u:uexp) : option { t : type & exp G t } :=
       end e1
   end.
 
+(* Here's an example elaboration for the increment function. *)
+Definition uinc : uexp := ULam "x" Nat_t (UBinop (UVar "x") UPlus (UNum 1)).
+Eval compute in (elaborate nil uinc).
+
+(* Similarly, applying the increment function to 42. *)
+Definition u2 : uexp := UApp uinc (UNum 42).
+Eval compute in (elaborate nil u2).
+
+(* Here's something that shouldn't type-check. *)
+Definition u3 : uexp := UApp (UVar "notbound") (UBool true).
+Eval compute in (elaborate nil u3).
+
+(* A combined elaboration and evaluation function. *)
+Definition evaluate (u:uexp) : option { t : type & tDenote t } := 
+  match elaborate nil u return option { t : type & tDenote t } with 
+    | None => None
+    | Some (existT t e) => Some (existT (fun t => tDenote t) t (expDenote e tt))
+  end.
+
+Eval compute in evaluate uinc.
+Eval compute in evaluate u2.
+
+Lemma u2_is_42 : evaluate u2 = Some (existT _ Nat_t 43).
+  auto.
+Qed.  
+
+Lemma uinc_is_id : evaluate uinc = 
+                   Some (existT (fun t => tDenote t) (Arrow_t Nat_t Nat_t) (fun v => plus v 1)).
+  auto.
+Qed.
