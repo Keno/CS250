@@ -509,15 +509,11 @@ Qed.
 Theorem EvalEq :
   forall c env a, evals1 env c a <-> evals2 env c a.
 Proof.
-  intro c.
-  split.
-
-  admit.
-  
-
-  Lemma onestep : forall c1 c2, c1 ==>1 c2 -> forall a, run c2 a -> run c1 a.
+    Lemma onestep : forall c1 c2, c1 ==>1 c2 -> forall a, run c2 a -> run c1 a.
     Proof.
       induction 1.
       crush.
       intros; econstructor; eauto.
+
       intros.
+      contradict H.
