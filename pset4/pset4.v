@@ -603,8 +603,6 @@ Proof.
       unfold steps in H0; assumption.
     Qed.
 
-    Show.
-
     intros.
     split.
     eapply evals12.
