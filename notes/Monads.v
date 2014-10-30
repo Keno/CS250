@@ -82,6 +82,8 @@ Instance pairShow(A B:Type)(showA : Show A)(showB : Show B) : Show (A*B) := {
 Eval compute in show (3,4).                 
 Eval compute in show (true,42).
 
+Print pairShow.
+
 (* Similarly, we can define a generic show for lists, as long
    as the elements of the lists are show'able. *)
 Definition show_list{A:Type}{showA:Show A}(xs:list A) : string := 
@@ -216,6 +218,7 @@ Definition tryCatch {A} (e:Exn A) (s:string) (handler:Exn A) : Exn A :=
 Definition eval_to_zero (e:exp) := 
   tryCatch (eval' e) "underflow" (ret 0).
 
+Check eval_to_zero.
 Eval compute in eval' (Minus (Num 2) (Num 5)).
 Eval compute in eval_to_zero (Minus (Num 2) (Num 5)).
 
@@ -327,6 +330,8 @@ Fixpoint eval_nd (e:exp_nd) : list nat :=
       ret (n1 * n2)
   end.
 
+
+Eval compute in eval_nd (Plus_nd (Choose_nd (1::2::nil)) (Choose_nd (3::4::nil))).
 
 Class Monad_with_Laws (M: Type -> Type){MonadM : Monad M} :=
 {
