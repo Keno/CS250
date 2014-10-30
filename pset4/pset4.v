@@ -4,6 +4,7 @@
 Require Import Arith.
 Require Import String.
 Require Import List.
+Add LoadPath "/Users/jkcl/cpdtlib".
 Require Import CpdtTactics.
 Set Implicit Arguments.
 Unset Automatic Introduction.
@@ -12,7 +13,8 @@ Local Open Scope string_scope.
 (** ** Abstract Syntax *)
 Definition var := string.
 
-Inductive binop : Type := Plus_op | Minus_op | Eq_op.
+Inductive binop : Type := Plus_op | Minus_op | Eq_op
+                          | Mul_op | Lt_op.
 
 Inductive exp : Type := 
 | Var_e : var -> exp
@@ -21,12 +23,19 @@ Inductive exp : Type :=
 | Num_e : nat -> exp
 | Binop_e : binop -> exp -> exp -> exp
 | Bool_e : bool -> exp
-| If_e : exp -> exp -> exp -> exp.
+| If_e : exp -> exp -> exp -> exp
+| Let_e : var -> exp -> exp -> exp
+| Fst_e : exp -> exp
+| Snd_e : exp -> exp
+| Pair_e : exp -> exp -> exp
+| Fix_e : var -> var -> exp -> exp.
 
 Inductive value : Type := 
 | Lam_v : list (var * value) -> var -> exp -> value
 | Num_v : nat -> value
-| Bool_v : bool -> value.
+| Bool_v : bool -> value
+| Pair_v : value -> value -> value
+| Fix_v : list (var * value) -> var -> var -> exp -> value.
 
 Inductive answer : Type := 
 | Value : value -> answer 
@@ -47,6 +56,8 @@ Definition eval_binop(b:binop)(v1 v2:value) : answer :=
     | Minus_op, Num_v n1, Num_v n2 => Value (Num_v (n1-n2))
     | Eq_op, Num_v n1, Num_v n2 => 
       Value (Bool_v (if eq_nat_dec n1 n2 then true else false))
+    | Mul_op, Num_v n1, Num_v n2 => Value (Num_v (n1*n2))
+    | Lt_op, Num_v n1, Num_v n2 => Value (Bool_v (NPeano.ltb n1 n2))
     | _, _, _ => TypeError 
   end.
 
@@ -95,6 +106,7 @@ Fixpoint compile (e:exp) (env:env_t value) : comp :=
       v2 <- compile e2 env ; 
       match v1 with 
         | Lam_v env' x e' => Delay e' ((x,v2)::env')
+        | Fix_v env' f x e' => Delay e' ((x,v2)::(f,v1)::env')
         | _ => Terr 
       end
     | Num_e n => ret Num_v n
@@ -110,7 +122,28 @@ Fixpoint compile (e:exp) (env:env_t value) : comp :=
           if b then compile e2 env else compile e3 env
         | _ => Terr 
       end
-  end.
+    | Let_e x e1 e2 =>
+      v <- compile e1 env ;
+      compile e2 ((x, v)::env)
+    | Fst_e e =>
+      v <- compile e env ;
+      match v with
+        | Pair_v v1 v2 => ret v1
+        | _ => Terr
+      end
+    | Snd_e e =>
+      v <- compile e env ;
+      match v with
+        | Pair_v v1 v2 => ret v2
+        | _ => Terr
+      end
+    | Pair_e e1 e2 =>
+      v1 <- compile e1 env ;
+      v2 <- compile e2 env ;
+      ret (Pair_v v1 v2)
+    | Fix_e f x e =>
+      ret (Fix_v env f x e)
+  end. (* XXX *)
   
 (** Now we can define a variety of different kinds of operational
       semantics for computations, including big-step, small-step, 
@@ -198,7 +231,8 @@ Notation "env |= e ==> a" := (evals2 env e a) (at level 80) : evals_scope.
 Inductive type : Type :=
 | Nat_t : type
 | Bool_t : type
-| Arrow_t : type -> type -> type.
+| Arrow_t : type -> type -> type
+| Pair_t : type -> type -> type.
 
 Reserved Notation "G |-- e ; t" (at level 80).  
 
@@ -219,7 +253,7 @@ Inductive hasType : env_t type -> exp -> type -> Prop :=
 | Binop_ht : forall G b e1 e2, 
     G |-- e1 ; Nat_t -> 
     G |-- e2 ; Nat_t -> 
-      G |-- Binop_e b e1 e2 ; match b with | Eq_op => Bool_t | _ => Nat_t end
+      G |-- Binop_e b e1 e2 ; match b with | Eq_op | Lt_op => Bool_t | _ => Nat_t end
 | Bool_ht : forall G b,
     G |-- Bool_e b ; Bool_t
 | If_ht : forall G e1 e2 e3 t, 
@@ -227,6 +261,17 @@ Inductive hasType : env_t type -> exp -> type -> Prop :=
     G |-- e2 ; t -> 
     G |-- e3 ; t -> 
       G |-- If_e e1 e2 e3 ; t
+| Let_ht : forall G x e1 e2 t t',
+    G |-- e1 ; t' ->
+    ((x,t')::G) |-- e2 ; t ->
+      G |-- Let_e x e1 e2; t
+| Pair_ht : forall G e1 e2 t1 t2,
+    G |-- e1 ; t1 ->
+    G |-- e2 ; t2 ->
+      G |-- Pair_e e1 e2; Pair_t t1 t2
+| Fix_ht : forall G f x e t1 t2,
+    ((x,t1)::(f,Arrow_t t1 t2)::G) |-- e ; t2 ->
+      G |-- Fix_e f x e ; Arrow_t t1 t2
 where "G |-- e ; t" := (hasType G e t) : typing_scope.
 Hint Constructors hasType.
 
@@ -246,6 +291,11 @@ Section ValueTyping.
     envType env G -> 
     (x,t1)::G |-- e ; t2 -> 
       valType (Lam_v env x e) (Arrow_t t1 t2)
+  | Pair_vt : forall v1 v2 t1 t2, valType (Pair_v v1 v2) (Pair_t t1 t2)
+  | Fix_vt : forall env f x e G t1 t2,
+    envType env G ->
+    (x,t1)::(f,Arrow_t t1 t2)::G |-- e ; t2 ->
+      valType (Fix_v env f x e) (Arrow_t t1 t2)
   with envType : env_t value -> env_t type -> Prop := 
   | Nil_et : envType nil nil 
   | Cons_et : forall x v t env G, 
@@ -311,7 +361,7 @@ Lemma CompPreserves :
   forall G e t, G |-- e ; t -> 
      forall env, envType env G -> compType (compile e env) t.
 Proof.
-  induction 1 ; crush ; repeat pv ; eauto. 
+  induction 1 ; crush ; repeat pv ; eauto.
 Qed. 
 
 (** A small step preserves types *)
@@ -356,18 +406,31 @@ Proof.
   inversion 1 ; subst ; auto.
 Qed.
 
-(** Good exercises:
+(** Good exercises: **)
 
+(*
   - Add new binary operations, such as Mul_op and Lt_op, and
     fix all the proofs as they break. 
+*)
 
+(* NO PROOF BREAKAGE?! *)
+
+(*
   - Add a "let" construct, and fix the proofs.  
+*)
 
+(* NO PROOF BREAKAGE?! *)
+
+(*
   - Add a new type (Pair_t : type -> type -> type), expressions 
     (Pair_e : exp -> exp -> exp) (Fst_e : exp -> exp) and (Snd_e : exp) 
     and a value (Pair_v : value -> value -> value).  Again, where do the 
     definitions and the proofs have to change?
+*)
 
+(* NO PROOF BREAKAGE?! *)
+
+(*
   - Add a "fix" construct.  The expression (fix f(x) := e) should
     provide a recursive function for evaluating e.  Typing fix is
     pretty easy:
@@ -386,14 +449,49 @@ Qed.
     You will need to modify the definition of value to 
     accomplish this.  Note that you may find it easier to encode 
     non-recursive functions as a special case of recursive functions.  
+*)
 
+(* NO PROOF BREAKAGE?! *)
+
+(*
   - Prove a progress theorem for well-typed computations:  
     If compType c t then either c is a well-typed answer, 
     or else c ==>1 c'.  
+*)
 
+Theorem Progress :
+  forall c t, compType c t -> match c with Ret a => ansType a t | _ => exists c', c ==>1 c' end.
+  (*forall c t, compType c t -> (exists a, c = Ret a -> ansType a t) \/ (exists c', c ==>1 c').*)
+Proof.
+  (* CLEAN UP *)
+
+  induction 1; [ crush | exists (compile e env); econstructor | .. ]; destruct c.
+
+  (* Ret *)
+  destruct a.
+  (* Ret-val *)
+  specialize H0 with (v:=v);
+  specialize H1 with (v:=v);
+  destruct (f v);
+  specialize step_Bind_value with (f:=f) (v:=v); intros; eauto.
+  (* Ret-err *)
+  specialize step_Bind_typeerror with (f:=f); intros; eauto.
+
+  (* Bind *)
+  destruct IHcompType as [ x IHcompType ].
+  specialize step_Bind with (c1:=c) (c2:=x) (f:=f); intros; eauto.
+
+  (* Delay *)
+  destruct IHcompType as [ x IHcompType ].
+  specialize step_Delay with (env:=l) (e:=e); intros; eauto.
+Qed.
+
+(*
   - Prove a type-soundness theorem:  if e is a well-typed
     program in the empty environment, then it is not the
     case that e ==>* TypeError
+*)
 
+(*
   - Prove that (evals1 c a) <-> (evals2 c a).  
 *)
