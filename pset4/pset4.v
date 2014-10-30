@@ -460,8 +460,10 @@ Qed.
 *)
 
 Theorem Progress :
-  forall c t, compType c t -> match c with Ret a => ansType a t | _ => exists c', c ==>1 c' end.
-  (*forall c t, compType c t -> (exists a, c = Ret a -> ansType a t) \/ (exists c', c ==>1 c').*)
+  forall c t, compType c t -> match c with
+                                | Ret a => ansType a t
+                                | _ => exists c', c ==>1 c'
+                              end.
 Proof.
   (* CLEAN UP *)
 
@@ -491,7 +493,31 @@ Qed.
     program in the empty environment, then it is not the
     case that e ==>* TypeError
 *)
+Theorem Soundness :
+  forall e t, nil |-- e ; t -> compile e nil ==>* Ret TypeError -> False.
+Proof.
+  intros.
+  apply StepsPreserves with (t:=t) in H0.
+
+  inversion H0; inversion H2.
+  apply CompPreserves with (e:=e) (G:=nil); [ assumption | crush ].
+Qed.
 
 (*
   - Prove that (evals1 c a) <-> (evals2 c a).  
 *)
+Theorem EvalEq :
+  forall c env a, evals1 env c a <-> evals2 env c a.
+Proof.
+  intro c.
+  split.
+
+  admit.
+  
+
+  Lemma onestep : forall c1 c2, c1 ==>1 c2 -> forall a, run c2 a -> run c1 a.
+    Proof.
+      induction 1.
+      crush.
+      intros; econstructor; eauto.
+      intros.
