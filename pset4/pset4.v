@@ -516,4 +516,97 @@ Proof.
       intros; econstructor; eauto.
 
       intros.
-      contradict H.
+      inversion H. rewrite <- H0 in H.
+      specialize run_Bind_typeerror with (f:=f) (c:=(Ret TypeError)); intros.
+      apply H2 in H. assumption.
+
+      intros.
+      inversion H0.
+      specialize run_Bind_value with (c:=c1) (f:=f) (v:=v) (a:=a); intros.
+      specialize IHstep with (a:=(Value v)).
+      apply IHstep in H3.
+      apply H6 in H3.
+      assumption. assumption.
+
+      rewrite <- H2 in H0.
+      specialize IHstep with (a:=TypeError).
+      apply IHstep in H4.
+      specialize run_Bind_typeerror with (c:=c1) (f:=f); intros.
+      apply H5 in H4.
+      assumption.
+    Qed.
+
+    Lemma evals21 : forall c env a, evals2 env c a -> evals1 env c a.
+    Proof.
+      unfold evals1. unfold evals2 in *. unfold steps.
+      intros.
+      eapply clos_refl_trans_ind with (P:=(fun x y => (forall a, run y a -> run x a))) in H.
+      crush. eapply onestep. intros. eassumption.
+      crush. 
+    Qed.
+
+    Lemma bind_chain : forall c c', (c ==>* c') -> forall f, (x <- c; f x) ==>* (x <- c'; f x).
+    Proof.
+      induction 1.
+      econstructor; eauto.
+      intros. unfold steps. crush.
+      intros. unfold steps.
+      specialize IHclos_refl_trans1 with (f:=f).
+      specialize IHclos_refl_trans2 with (f:=f).
+      Print clos_refl_trans.
+      eapply rt_trans with (y:=(x0<-y; f x0)).
+      unfold steps in IHclos_refl_trans1.
+      unfold steps in IHclos_refl_trans2.
+      assumption. assumption.
+    Qed.
+
+    Lemma one_to_many : forall c c', c ==>1 c' -> c ==>* c'.
+    Proof.
+      intros.
+      apply rt_step. assumption.
+    Qed.
+
+    Lemma evals12 : forall c env a, evals1 env c a -> evals2 env c a.
+    Proof.
+      unfold evals1. unfold evals2 in *.
+
+      induction 1; intros; unfold steps.
+
+      crush.
+
+      specialize step_Delay with (e:=e) (env:=env0); intros.
+      specialize one_to_many with (c:=(Delay e env0)) (c':=(compile e env0)); intros.
+      apply H1 in H0.
+      unfold steps in *; eapply rt_trans with (y:=(compile e env0)).
+      crush. assumption.
+
+      specialize step_Bind_value with (f:=f) (v:=v); intros.
+      specialize one_to_many with (c:=(x<-ret v; f x)) (c':=(f v)); intros.
+      apply H2 in H1.
+      specialize bind_chain with (c:=c0) (c':=(ret v)); intros.
+      crush.
+      specialize H4 with (f:=f).
+      eapply rt_trans with (y:=(f v)).
+      eapply rt_trans with (y:=(x<-ret v; f x)).
+      crush.
+      unfold steps in H1; assumption.
+      unfold steps in IHrun2; assumption.
+
+      specialize step_Bind_typeerror with (f:=f); intros.
+      specialize one_to_many with (c:=(x<-Ret TypeError; f x)) (c':=(Ret TypeError)); intros.
+      apply H1 in H0.
+      specialize bind_chain with (c:=c0) (c':=(Ret TypeError)); intros.
+      crush.
+      specialize H3 with (f:=f).
+      eapply rt_trans with (y:=(x<-Ret TypeError; f x)).
+      unfold steps in H3; assumption.
+      unfold steps in H0; assumption.
+    Qed.
+
+    Show.
+
+    intros.
+    split.
+    eapply evals12.
+    eapply evals21.
+Qed.
