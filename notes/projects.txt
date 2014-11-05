@@ -1,0 +1,70 @@
+Project Expectations:
+
+* Tuesdsay Nov 4:  project description
+   * 1 page description of the project (per team) [description.txt]
+   * Who is on the team
+   * What you are going to model 
+       (an algorithm, a language, a protocol, a math structure, ...)
+   * What you hope to prove about the model
+       (fnl. correctness, type-safety, standard theorems, etc.)
+
+* Tuesday Nov 11:  project checkpoint #1
+   * Modeling mostly done.
+   * 1-2 page description of what you've accomplished so far
+      and what's left to be done, what problems you've encountered,
+     where you need help [checkpoint_1.txt]
+   * Documented Coq code (see coqdoc) 
+
+
+* Tuesday Nov 18: project checkpoint #2
+   * Modeling done; theory half way done
+   * additional 1-2 page description of what you've accomplished 
+      since checkpoint 1. [checkpoint_2.txt]
+   * More documented Coq code
+
+* Tuesday Dec 2:  projects due at midnight
+   * Everything done.
+   * [final_report.txt]:  1-2 page description of what you've 
+      accomplished.  Where are the holes (e.g., Admits in your
+     development)?  Who on your team did what?
+   * Fully documented, build-able Coq code.
+
+----------------
+Example project ideas:
+
+* Data structures & functional correctness
+  * one of: red-black trees, tries, AVL trees, heaps, etc.
+  * proofs:  equivalent behavior to naive implementation of a
+    set/finite-map/queue, etc. using lists.
+
+* Languages & types (probably need CS152 under your belt):
+  [See Pierce's Types & Programming Languages]
+  * model a language with refs & extend type safety proof.
+  * model a language with subtyping & extend type safety proof.
+  * model a language with polymorphism & extend type safety proof.
+  * model a language with exceptions & extend types to reflect.
+    which functions may throw which exceptions.
+
+* Systems & safety properties
+  * model a log-structured file system + recover manager; 
+    establish a definition of "good" file system; show that
+    if the file system fails at any point, then the recover manager
+    will always get things back to a "good" file system.
+  * model a cache-coherence protocol that implements sequentially
+    consistent updates.  Show that certain "bad" sequences of 
+    concurrent threads cannot arise.
+  * model a simple service that supports authentication, returning
+    an authentication token which must be presented by clients to
+    invoke services.  Model common attacks, such as replay or 
+    man-in-the-middle.  
+
+* Math & logic
+  * Define & prove traditional theorems regarding groups, rings, 
+     vector spaces, etc.  
+  * Build a SAT-solver and prove correctness
+  * Build a quantifier-free, first-order logic solver 
+      * bonus:  use reflection to turn it into a Coq tactic
+  * Build a Hoare-logic for reasoning about simple imperative
+    programs.  
+
+
