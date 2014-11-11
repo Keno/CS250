@@ -1,0 +1,13 @@
+Modelling Julia
+
+Who
+Jao-ke Chin-Lee and Keno Fischer
+
+What
+We will model a subset of Julia's type inference [1], and will attempt to prove its termination (or determine whether it's hard to prove its termination) and correctness.
+
+How
+We will begin by implementing the type inference algorithm and type lattice, starting without subtypes, parametric types or types as values, and attempting to prove termination and/or correctness. Then, we will add types as values, subtypes, and parametric types, building up the type lattice, and attempting to maintain the proofs as we go, seeing where they break if they do.
+
+References
+[1] J. Bezanson, S. Karpinski, V. B. Shah, and A. Edelman. Julia: A fast dynamic language for technical computing. arXiv:1209.5145 [cs.PL].

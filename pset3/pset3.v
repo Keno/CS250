@@ -1,3 +1,4 @@
+Add LoadPath "/Users/jkcl/cpdtlib".
 Require Import List CpdtTactics.
 Import ListNotations.
 
@@ -423,23 +424,19 @@ Require Import Wf.
    down.  In this case, the length of the argument list is always
    going down when we do a recursive call.
 *)
-Program Fixpoint 
-  merge_iter (xs : list (list nat)) {measure (length xs)} : list nat :=
+
+Require Import Recdef.
+
+Function merge_iter (xs : list (list nat)) {measure length} : 
+  list nat :=
   match xs with 
-    | nil => nil
+   | nil => nil
     | h::nil => h
     | h1::h2::xs' => merge_iter (merge_pairs (h1::h2::xs'))
   end.
-(* Notice that Coq spits out a bunch of stuff here and says
-   there's 1 obligation remaining.  This obligation arises
-   as a result of the recursive call -- we need to show that
-   the measure is actually decreasing.  The command [Next Obligation]
-   let's us provide a proof of the needed fact.  Note that
-   until we finish the proofs of all obligations, the 
-   function [merge_iter] is not defined. *)
-Next Obligation.
-  apply (merge_pairs_length h1 h2 xs'). 
-Qed.
+intros.
+apply merge_pairs_length.
+Defined.
 
 Print merge_iter.
 
@@ -488,14 +485,97 @@ Definition merge_sort (xs:list nat) :=
 Eval compute in merge_sort [7;8;3;5;1;2;6;4].
 Eval compute in merge_sort [3;2;7;8].
 
-(* Exercises:
+(* Exercises:*)
 
+(*
 1. Show that
 
    a. sorted xs -> sorted ys -> sorted (merge xs ys)
    b. (length xs + length ys) = length (merge xs ys)
    c. In x xs \/ In x ys <-> In (merge xs ys)
 
+*)
+
+Require Import Arith.
+
+Lemma le_trans : forall a a0 xs, a <= a0 -> list_all (le a0) xs -> list_all (le a) xs.
+Proof.
+  intros.
+  induction xs; crush.
+Qed.
+
+Lemma list_all_merge : forall P xs ys, list_all P xs -> list_all P ys -> list_all P (merge xs ys).
+Proof.
+  intro P.
+  induction xs.
+  crush.
+  intros.
+  induction ys.
+  crush.
+  simpl merge.
+  remember (nat_lte a a0) as cond; destruct cond.
+  specialize IHxs with (ys:=(a0::ys)).
+  destruct H. apply IHxs in H1. clear IHxs.
+  unfold list_all. crush. crush.
+  crush.
+Qed.
+
+Theorem merge_ok_sorted : forall xs ys, sorted xs -> sorted ys -> sorted (merge xs ys).
+Proof.
+  induction xs.
+  crush.
+  induction ys.
+  crush.
+  intros.
+  unfold merge.
+  destruct (nat_lte a a0).
+
+  (* a <= a0 *)
+  crush. fold merge.
+  apply IHxs. assumption.
+  split; assumption.
+  specialize list_all_merge with (P:=(le a)) (xs:=xs) (ys:=(a0::ys)).
+  intros. fold merge. apply H0. assumption.
+  split. assumption.
+  apply le_trans with (a0:=a0); assumption.
+
+  (* a > a0 *)
+  fold merge.
+  specialize IHxs with (ys:=ys).
+  assert (sorted (merge (a :: xs) ys)).
+  apply IHys in H. assumption. destruct H0. assumption.
+  simpl. split.
+  unfold merge in H1. fold merge in H1. assumption.
+  eapply list_all_merge with (P:=(le a0)) (xs:=(a::xs)) (ys:=ys).
+  crush. apply le_trans with (a0:=a).
+  crush. assumption. crush.
+Qed.
+
+Theorem merge_ok_len : forall xs ys, length xs + length ys = length (merge xs ys).
+Proof.
+  induction xs.
+  crush.
+  induction ys.
+  crush.
+  unfold merge.
+  destruct (nat_lte a a0); fold merge.
+  simpl. rewrite <- IHxs with (ys:=(a0::ys)). crush.
+  simpl in *. rewrite <- IHys. crush.
+Qed.
+
+Theorem merge_ok_subset : forall x xs ys, In x xs \/ In x ys <-> In x (merge xs ys).
+Proof.
+  induction xs.
+  crush.
+  induction ys.
+  crush.
+  unfold merge.
+  destruct (nat_lte a a0); fold merge.
+  simpl. rewrite <- IHxs with (ys:=(a0::ys)). crush.
+  simpl in *. rewrite <- IHys. crush.
+Qed.
+
+(*
 2. Show that 
 
    a. list_all sorted xs -> list_all sorted (merge_pairs xs)
@@ -503,21 +583,173 @@ Eval compute in merge_sort [3;2;7;8].
         (sum of lengths of lists in merge_pairs xs)
    c. (x is in one of the lists in xs) <->
         (x is in one of the lists in merge_pairs xs)
+*)
 
+Lemma merge_pairs_ok_sorted' : forall xs, (list_all sorted xs -> list_all sorted (merge_pairs xs)) /\ (forall a, list_all sorted (a::xs) -> list_all sorted (merge_pairs (a::xs))).
+Proof.
+  induction xs.
+  crush.
+  split; destruct IHxs.
+  apply H0 with (a:=a).
+  intros.
+  simpl.
+  destruct H1. destruct H2.
+  apply H in H3.
+  split; [ | assumption ].
+  apply merge_ok_sorted; assumption.
+Qed.
+
+Theorem merge_pairs_ok_sorted : forall xs, list_all sorted xs -> list_all sorted (merge_pairs xs).
+  intros.
+  apply merge_pairs_ok_sorted'. assumption.
+Qed.
+
+Definition sum_lengths (xs:list (list nat)) : nat :=
+  fold_right (fun x n => n + length x) 0 xs.
+
+Definition in_any x (xs:list (list nat)) : Prop :=
+  fold_right (fun h b => (In x h) \/ b) False xs.
+
+Lemma merge_pairs_ok_len' : forall xs, (sum_lengths xs = sum_lengths (merge_pairs xs)) /\ (forall a, sum_lengths (a::xs) = sum_lengths (merge_pairs (a::xs))).
+Proof.
+  induction xs.
+  crush.
+  split; destruct IHxs.
+  apply H0 with (a:=a).
+  intros.
+  simpl.
+  specialize merge_ok_len with (xs:=a0) (ys:=a).
+  crush.
+Qed.
+
+Theorem merge_pairs_ok_len : forall xs, sum_lengths xs = sum_lengths (merge_pairs xs).
+Proof.
+  intros.
+  apply merge_pairs_ok_len'.
+Qed.
+
+Lemma merge_pairs_ok_subset' : forall x xs, (in_any x xs <-> in_any x (merge_pairs xs)) /\ (forall a, in_any x (a::xs) <-> in_any x (merge_pairs (a::xs))).
+Proof.
+  induction xs.
+  crush.
+  split; destruct IHxs.
+  apply H0 with (a:=a).
+  intros.
+  simpl.
+  rewrite H.
+  specialize merge_ok_subset with (x:=x) (xs:=a0) (ys:=a).
+  intros.
+  rewrite <- H1.
+  crush.
+Qed.
+
+Theorem merge_pairs_ok_subset : forall x xs, in_any x xs <-> in_any x (merge_pairs xs).
+Proof.
+  intros.
+  apply merge_pairs_ok_subset'.
+Qed.
+
+(*
 3. Show that
 
    a. list_all sorted xs -> sorted (merge_iter xs)
    b. (sum of lengths of lists in xs) = length of (merge_iter xs)
    c. (x is in one of the lists in xs) <-> In x (merge_iter xs)
+*)
+Theorem merge_iter_ok_sorted : forall xs, list_all sorted xs -> sorted (merge_iter xs).
+Proof.
+  intros.
+  functional induction (merge_iter xs).
+  crush.
+  crush.
+  apply IHl.
+  apply merge_pairs_ok_sorted.
+  assumption.
+Qed.
 
+Theorem merge_iter_ok_len : forall xs, sum_lengths xs = length (merge_iter xs).
+Proof.
+  intros.
+  functional induction (merge_iter xs).
+  crush.
+  crush.
+  rewrite <- IHl.
+  apply merge_pairs_ok_len.
+Qed.
+
+Lemma orf : forall p, (p \/ False) <-> p.
+Proof.
+  crush.
+Qed.
+
+Theorem merge_iter_ok_subset : forall x xs, in_any x xs <-> In x (merge_iter xs).
+Proof.
+  intros.
+  functional induction (merge_iter xs).
+  crush.
+  simpl.
+  apply orf.
+  rewrite <- IHl.
+  apply merge_pairs_ok_subset.
+Qed.
+  
+(*
 4.  Show that
 
     a. make_lists xs is sorted
     b. In x xs <-> (x is in one of the lists in make_lists xs)
     c. length xs = (sum of the lengths of the lists in make_lists xs)
+*)
+Theorem make_lists_ok_sorted : forall xs, list_all sorted (make_lists xs).
+Proof.
+  induction xs; crush.
+Qed.
 
+Theorem make_lists_ok_subset : forall x xs, in_any x (make_lists xs) <-> In x xs.
+Proof.
+  induction xs; crush.
+Qed.
+
+Theorem make_lists_ok_len : forall xs, sum_lengths (make_lists xs) = length xs.
+Proof.
+  induction xs; crush.
+Qed.
+
+(*
 5.  Show that sort_corr xs (merge_sort xs)
+*)
+Theorem sort_corr_ok : forall xs, sort_corr xs (merge_sort xs).
+Proof.
+  induction xs; unfold merge_sort in *; unfold sort_corr in *.
 
+  crush. unfold sublist. crush.
+
+  split; destruct IHxs; destruct H0.
+
+  apply merge_iter_ok_sorted.
+  apply make_lists_ok_sorted.
+
+  split.
+  unfold sublist in *.
+
+  specialize make_lists_ok_subset with (xs:=(a::xs)).
+  intros.
+  apply merge_iter_ok_subset.
+  specialize H2 with (x:=x) (xs:=(a::xs)).
+  crush.
+
+  specialize make_lists_ok_len with (xs:=(a::xs)).
+  intros.
+  specialize merge_iter_ok_len with (xs:=(make_lists (a::xs))).
+  crush.
+Qed.
+
+(*
 6.  Define a better definition of correctness for sorts (sort_corr').
 
 *)
+
+Require Import Sorting.Permutation.
+
+Definition sort_corr' (xs ys:list nat) : Prop :=
+  sorted ys /\ Permutation xs ys.
