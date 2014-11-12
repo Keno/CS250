@@ -1,0 +1,48 @@
+Checkpoint 1
+
+We've started implementing the type lattice, focusing on a simplified model
+that for now, does not take into account dependent types, union types, or
+tuples, and defining the Juliadic notions of supertype and subtype. With these,
+we've started to model the language itself in terms of inference so as to
+produce a declarative model.
+
+Specifically, we’re setting up a simple model of an AST and expression tree.
+The idea is that any type inference routine, would map one AST to another,
+annotating expressions within the AST by the appropriate type. On this
+structure, we then started defining a notion of soundness for any inference
+routine (it must not pessimize the type annotations and it must not annotate
+a type that cannot possibly occur at that location, e.g. a callsite must
+always be annotated with a supertype of the return type at that location.
+
+Julia’s notion of inheritance is a simple lattice, with “Bottom” being the
+bottom of the type lattice and “Top” being the Top. Every type can be assigned
+a unique supertype; however, there is one fixpoint in the lattice below top,
+called “Any”. Unannotated types, implicitly are annotated with “Any”, with “Top”
+being only used as a common super type for a value that may either be assigned
+or not (i.e. the result of looking up “x” in a scope where it is defined, but
+has not been assigned, will be assigned the “Undef” type). Though we specified
+the “Top” type in the type lattice, we are not yet dealing with the possibility
+of having unassigned variables.
+
+Inheritance defines the subtype relation and must be explicitly declared by the
+programmer and put in the lattice. In particular, inheriting from concrete types
+is disallowed, so this inclusion subtyping does not need to worry about concrete
+types having subtypes. We make a few simplifications to the model, in which we
+assume that methods always have a single, well-defined concrete subtype to avoid
+(for the moment) having to deal with interprocedural type inference.
+
+We will also need to model method dispatch (julia makes use of multimethods).
+Methods are placed into a method table: when a method is called its signature is
+searched for in the the method table in order to determine the appropriate
+parameter and return types. Semantically this decision is always made at runtime
+and hence a type inference algorithm may only make use of the concrete
+signatures, if it can prove there is only one signature matching. We have yet to
+implement the dispatch semantics.
+
+We also met with Prof. Morrisett after class to discuss how to break up the
+steps to modelling as we proceed.
+
+One of the problems we ran into with Coq was positive occurrence (or more
+precisely, lack thereof), so the first thing we will do next is massage our
+model to work around this. Then we’ll continue with soundness and introduce
+more complex parts of the Julia type system.
