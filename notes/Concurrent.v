@@ -59,8 +59,8 @@ Definition program := list com.
 Notation "'def' x ':=' c1 'in' c2" := (Bind c1 (fun x => c2))
   (right associativity, at level 84, c1 at next level).
 Definition c1 : com := def v := Read "x" in Write "x" (1 + v).
-Definition c2 : com := def v := Read "x" in Write "x" (v - 1).
-Definition c3 : com := def v := Read "x" in if eq_nat_dec v 0 then Write "y" 42 else  Write "y" 1.
+Definition c2 : com := def v := Read "z" in Write "z" (v - 1).
+Definition c3 : com := def v := Read "w" in if eq_nat_dec v 0 then Write "y" 42 else  Write "y" 1.
 
 Definition p0 : program := [c1;c2;c3].
 Definition s0 : store := [("x",0) ; ("y",0)].
@@ -72,8 +72,8 @@ Inductive step_com : com -> memory -> com -> memory -> Prop :=
 | step_bind_cong : forall c c' m m' f, 
                      step_com c m c' m' -> 
                      step_com (Bind c f) m (Bind c' f) m'
-| step_write : forall x v m m', m' = update_store x v m -> step_com (Write "x" v) m (Ret v) m'
-| step_read : forall x m v, v = lookup_store x m -> step_com (Read "x") m (Ret v) m
+| step_write : forall x v m m', m' = update_store x v m -> step_com (Write x v) m (Ret v) m'
+| step_read : forall x m v, v = lookup_store x m -> step_com (Read x) m (Ret v) m
 | step_lock : forall l m m', lookup_lock l m = Unlocked -> m' = update_lock l Locked m -> 
                              step_com (Lock l) m (Ret 1) m'
 | step_unlock : forall l m m', lookup_lock l m = Locked -> m' = update_lock l Unlocked m -> 
