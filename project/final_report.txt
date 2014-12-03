@@ -81,6 +81,11 @@ formalized inference validity as each ExprTree in an inferred program to be
 valid and a subtype of the respective ExprTree in the original program.
 
 Findings and Challenges
+    We would like to have had more proven about the actual inference algorithm,
+but that turned out to require much more and trickier infrastructure than
+expected in terms of defining the language, and defining the constructs used by
+the inference algorithm. As it was, we were at least able to sanity-check the
+validity of various reflexive constructs.
     ExprTree subtyping was very difficult to implement. twolist_all_wf seemed
 at first to be easy to define, but then Coq complained about no decreasing
 argument. Thus we needed to define a depth function for ExprTrees, as it is on

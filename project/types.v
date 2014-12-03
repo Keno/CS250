@@ -11,9 +11,20 @@ Require Import FunctionalExtensionality.
 Include WfExtensionality.
 
 (* TODO: Split into TagT when adding parameters *)
-(**
-Here we have types. 
+
+(** * Types
+Here we formulate the type lattice.
+  
+We have
+- abstract types: these can inherit and be inherited from
+  -- two special abstract types are [Any] and [Top], though we focused
+     more on Any, which is the "do not know" annotation
+- concrete types: these can only inherit
+
+The two are bound together with [JLType].
+
 *)
+
 Inductive TypeName : Type :=
 | TypName : string -> AbstractType -> TypeName
 with AbstractType : Type :=
@@ -28,6 +39,14 @@ Inductive ConcreteType : Type :=
 Inductive JLType : Type :=
 | AT : AbstractType -> JLType
 | CT : ConcreteType -> JLType.
+
+(** ** Type Lattice
+
+To define the type lattice we need a [super] relation, and [issub] proposition that relies on the former.
+
+Note [Any] and [Top] are the two fixpoints. Also note that functions do not figure in the type lattice; we will deal with them later.
+
+*)
 
 Definition super (T: JLType) := 
   AT match T with
@@ -58,6 +77,23 @@ Inductive issub : JLType -> JLType -> Prop :=
 Definition label := nat.
 Definition var := string.
 
+(** * Programs
+
+Programs consist of lists of nodes that in turn consist of expressions. Expressions have a static environment associated with them; nodes alter environment (via [Assign]) and control flow (via [Goto]).
+
+*)
+
+(** ** Expressions
+
+We have three kinds of expressions, or [ExprTree]s:
+  - [Call]: these take in a [MethodTable], which is a list of type signatures associated with the called function (name), a list of parameters as a [list ExprTree], and a return type as a [JLType]
+  - [Const]: these are just constants
+  - [VarLookup]: these, when coupled with an environment, provide the looked-up [var] with a [JLType]
+
+Note that [ExprTree]s are essentially annotated expressions, whose annotations may or may not be valid.
+
+*)
+
 (* We are avoiding interprocedural type inference for now by 
    defining every method to have a well defined return type *)
 Definition Method := (prod (list JLType) ConcreteType).
@@ -68,33 +104,11 @@ Inductive ExprTree :=
 | Const : ConcreteType -> ExprTree (* consttype *)
 | VarLookup : var -> JLType -> ExprTree. (* var, vartype *)
 
-Inductive LoweredASTNode :=
-| Assign : var -> ExprTree -> LoweredASTNode
-| GotoNode : label -> LoweredASTNode
-| GotoIfNot : ExprTree -> label -> LoweredASTNode
-| Return : ExprTree -> LoweredASTNode.
-
-Definition LoweredAST := list LoweredASTNode.
-
-Definition TypedList T := (list (var * T)).
-
-Definition LambdaInfo := (pair (TypedList ConcreteType) LoweredAST).
-
-Fixpoint twolist_all {A:Type} (P:A->A->Prop) (xs ys:list A) : Prop :=
-  match xs, ys with
-      | nil, nil => True
-      | (hdx::xs'), (hdy::ys') => (P hdx hdy) /\ twolist_all P xs' ys'
-      | _, _ => False
-  end.
-
-Fixpoint list_all {A:Type} (P:A->Prop) (xs:list A) : Prop :=
-  match xs with
-      | nil => True
-      | (hdx::xs') => (P hdx) /\ list_all P xs'
-  end.
-
+(* of course this wouldn't /really/ be None... *)
 Fixpoint method_lookup (M: MethodTable) (args: list ExprTree) : option Method := None.
 
+(** *** Helper Functions
+*)
 Definition rettype (x : option Method) : option JLType := 
   match x with
     | None => None
@@ -125,6 +139,8 @@ Definition var_isdef (typs : TypedList JLType) (v : var) : Prop :=
     | _ => True
   end.
 
+(** *** Validity
+*)
 Inductive ExprTreeValid : (TypedList JLType) -> ExprTree -> Prop :=
 | Call_valid : forall env mt args rettyp,
                  issub' (rettype (method_lookup mt args)) rettyp ->
@@ -136,8 +152,17 @@ Inductive ExprTreeValid : (TypedList JLType) -> ExprTree -> Prop :=
                       var_istype env v vartyp ->
                         ExprTreeValid env (VarLookup v vartyp).
 
+(** *** Refinement
+
+We wish, when inferring, to have a more refined inference; that is, we want a notion of subtyping.
+
+*)
+
 Require Import Coq.Program.Wf.
 
+(**
+For that, we need a notion of [ExprTree] depth.
+*)
 Definition max_all l := fold_right (fun h t => max h t) 0 l.
 Fixpoint depth (e : ExprTree) :=
   match e with
@@ -145,7 +170,11 @@ Fixpoint depth (e : ExprTree) :=
     | _ => 0
   end.
 
+(**
+We also need [ExprTree] decidability.
+*)
 Theorem exprtree_eq_dec : forall (E1 E2:ExprTree), {E1 = E2} + {E1 <> E2}.
+(* begin hide *)
 Proof.
   Lemma exprtree_eq_dec_depth' : forall (E1 E2:ExprTree) (n:nat), n = depth E1 -> ({E1 = E2} + {E1 <> E2}).
   Proof.
@@ -155,8 +184,13 @@ Proof.
   specialize exprtree_eq_dec_depth' with (E1:=E1) (E2:=E2) (n:=(depth E1)).
   crush.
 Qed.
+(* end hide *)
 
+(**
+Then we need to be able to relate two lists (of arguments in a [Call]).
+*)
 Fixpoint twolist_all_wf {A:Type} (xs ys: list A) (Q: A->Prop) (P: forall x:A, A->(Q x)->Prop) (O: forall x, (In x xs)->(Q x)) {struct xs} : Prop.
+(* begin hide *)
   intros.
   destruct xs eqn:XE; destruct ys eqn:YE. 
   refine (True).
@@ -176,6 +210,7 @@ Fixpoint twolist_all_wf {A:Type} (xs ys: list A) (Q: A->Prop) (P: forall x:A, A-
   apply in_cons.
   assumption.
 Defined.
+(* end hide *)
 
 Definition args (E : ExprTree) : list ExprTree :=
   match E with
@@ -188,6 +223,9 @@ Proof.
   induction l; crush. 
 Qed.
 
+(**
+Now we can prove that in each layer of a [Call], the depth of the [ExprTree] decreases.
+*)
 Definition depth_decreases (xs:list ExprTree) (E1 : ExprTree) : (xs = args E1) -> (forall x, (In x xs)->(depth x < depth E1)).
 Proof.
   intros.
@@ -229,7 +267,9 @@ Program Fixpoint exprtree_subtype (E1 E2 : ExprTree) {measure (depth E1)} : Prop
     | (_,_) => False
   end.
 Solve Obligations using crush.
-  
+
+(** *** Reflexity of Validity
+*)
 Lemma Call0 : forall m args r, 0 = depth (Call m args r) <-> args = [].
 Proof.
   induction args0.
@@ -258,11 +298,22 @@ Proof.
   induction ys; crush.
 Qed.
 
+Fixpoint twolist_all {A:Type} (P:A->A->Prop) (xs ys:list A) : Prop :=
+  match xs, ys with
+      | nil, nil => True
+      | (hdx::xs'), (hdy::ys') => (P hdx hdy) /\ twolist_all P xs' ys'
+      | _, _ => False
+  end.
+
+(**
+We need the below for contravariance.
+*)
 Lemma exprtree_subtype_hammer : forall m1 m2 args1 args2 r1 r2,
                                   m1=m2 -> 
                                   issub r2 r1 ->
                                   twolist_all exprtree_subtype args1 args2 ->
                                     exprtree_subtype (Call m1 args1 r1) (Call m2 args2 r2).
+(* begin hide *)
 Proof.
   intros.
   set (call:= (exprtree_subtype (Call m1 args1 r1) (Call m2 args2 r2))).
@@ -280,16 +331,24 @@ Proof.
   crush.
   destruct args2; assumption.
   Admitted.
+(* end hide *)
+
+(**
+Let's check reflexivity of [ExprTree] subtyping.
+*)
 
 Lemma max_ge : forall n m z, z >= max n m -> z >= n /\ z >= m.
+(* begin hide *)
 Proof.
   intros.
   specialize le_ge_dec with (n:=n) (m:=m); intros.
   destruct H0. assert (l2:=l). apply max_r in l. crush.
   assert (g2:=g). apply max_l in g. crush.
 Qed.
+(* end hide *)
 
 Lemma max_cons : forall a l n, n >= max_all (a::l) -> n >= max_all l.
+(* begin hide *)
 Proof.
   induction l.
   crush.
@@ -297,14 +356,18 @@ Proof.
   simpl max_all in *.
   apply max_ge in H. destruct H. assumption.
 Qed.
+(* end hide *)
 
 Lemma cons_is_app_one : forall A (a: A) (l: list A), a::l = (app [a] l).
+(* begin hide *)
 Proof.
   crush.
 Qed.
+(* end hide *)
 
 Lemma argdepth : forall m n a l j, n >= depth (Call m (a :: l) j) ->
                                      n > (depth a) /\ n >= depth (Call m l j).
+(* begin hide *)
 Proof.
   intros.
   unfold depth in *.
@@ -326,9 +389,11 @@ Proof.
   apply max_cons in H.
   assumption.
 Qed.
+(* end hide *)
 
 Lemma exprtree_subtype_refl : forall tree, exprtree_subtype tree tree.
   Lemma exprtree_subtype_refl' : forall n tree, n >= depth tree -> exprtree_subtype tree tree.
+  (* begin hide *)
   Proof.
     induction n.
     intros. destruct tree.
@@ -358,14 +423,38 @@ Lemma exprtree_subtype_refl : forall tree, exprtree_subtype tree tree.
     crush.
     crush.
   Qed.
+  (* end hide *)
   intros.
   destruct (depth tree) eqn:d.
   apply exprtree_subtype_refl' with (n:=0). crush.
   apply exprtree_subtype_refl' with (n:=(S (S n))). crush.
 Qed.
 
+(** ** Inference Validity
+
+*** (Expressions)
+
+Now we can define validity of an inference, and capture refinement: both the start and the end are valid, and the end is a subtype of the first.
+
+*)
+
 Definition ExprTreeInferenceValid (typs: TypedList JLType) (E1 E2: ExprTree) :=
   ExprTreeValid typs E1 /\ ExprTreeValid typs E2 /\ exprtree_subtype E2 E1.
+
+(** *** (Nodes)
+*)
+
+Inductive LoweredASTNode :=
+| Assign : var -> ExprTree -> LoweredASTNode
+| GotoNode : label -> LoweredASTNode
+| GotoIfNot : ExprTree -> label -> LoweredASTNode
+| Return : ExprTree -> LoweredASTNode.
+
+Definition LoweredAST := list LoweredASTNode.
+
+Definition TypedList T := (list (var * T)).
+
+Definition LambdaInfo := (pair (TypedList ConcreteType) LoweredAST).
 
 Inductive NodeValid : (TypedList JLType) -> LoweredASTNode -> Prop :=
 | Assign_valid : forall typs tree v, ExprTreeValid typs tree -> NodeValid typs (Assign v tree)
@@ -395,10 +484,19 @@ Proof.
   ( split; [ assumption | ] ); apply exprtree_subtype_refl.
 Qed.
 
+(** *** (Programs)
+*)
+
 Definition InferenceValid (typs: TypedList JLType) (AST1: LoweredAST) (AST2: LoweredAST) : Prop :=
   twolist_all (fun A B => NodeInferenceValid typs A B) AST1 AST2.
 
 Hint Unfold InferenceValid.
+
+Fixpoint list_all {A:Type} (P:A->Prop) (xs:list A) : Prop :=
+  match xs with
+      | nil => True
+      | (hdx::xs') => (P hdx) /\ list_all P xs'
+  end.
 
 Definition ASTValid typs AST := list_all (fun A => NodeValid typs A) AST.
 
