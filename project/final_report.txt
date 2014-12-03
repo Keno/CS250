@@ -1,0 +1,131 @@
+Julia's Type System (Simplified)
+    Julia's has a lattice type system, with two main types of types---abstract
+and concrete---an "Any" type, and a "Bottom" type (to denote the bottom of the
+type lattice). Abstract types may inherit from each other, and concrete types
+may inherit from abstract types, but types may not inherit from concrete types.
+Therefore, subtyping as taught in CS152 (e.g. with structs being subtypes of
+other structs IFF the fields of the former form a superset of and inherit from
+the fields of the latter) is not applicable, but implementation is much
+simplified. Moreover, inference need not be completed at compile time: at
+compile time, Julia infers as many type annotations as possible, and if it
+cannot infer some type, tags the value instead with the "Any" type. These
+annotations are then resolved at runtime.
+
+Julia's Type Inference
+    Type inference proceeds as follows. First, any user-provided or built-in
+type annotations are gathered (e.g. if a user declares variable x to be of type
+T, or uses constant 1, which Julia understands to be of type Int, or 1.0, which
+Julia understands to be of type Float). Next, Julia infers intra-expression
+types. More precisely, a program can be thought of as consisting of a (flat)
+list of nodes, where each node consists of expressions, and where each
+expression can consist of a function call, a constant, or a variable---note that
+these are instances in which all local variables do not change type. For example,
+an expression might be (+ (+ x 1) 3), where x is a variable in our environment.
+Nodes then consist of expressions coupled with changing environments and/or data
+flow, for instance, assigns, gotos, or returns.
+    Intra-expression type inference, then, is inference within an expression, in
+which Julia proposes a valid type annotation finer than the existing one. For
+this, Julia keeps method tables associated with each method [name], which keep
+a list of all associated type signatures with that method name. To infer for a
+call, then, Julia looks up in the method table and finds the type signature that
+is valid: recalling contravariance, in which parameters are supertypes of the
+known annotations, and the return type is a subtype of the known annotations,
+if any. Constants, of course, just keep their (already known) annotations, and
+variables are looked up with the (static) environment attached to the
+expression.
+    As can be guessed, inter-expression (interprocedural) inference follows, in
+which Julia traces the data flow between nodes and changing environments, and in
+a manner similar in concept to that described above.
+
+Our Model
+    We focused on inference within expressions, although we also included some
+preliminary infrastructure for nodes.
+    We started by modeling the type lattice, a fairly straightforward exercise
+of building up abstract types (AT [typename], including Any---we omitted
+Bottom, which is helpful for joining types because there are no special cases,
+because we used more of a tree structure than lattice structure in our model)
+and concrete types (CT [typename]), encapsulating them both as JLTypes, and
+then describing the supertype relation and subtype proposition.
+    We then built up inductive ExprTrees, consisting of
+        Call (mt:MethodTable) (params:list ExprTree) (rettype:JLType)
+        Const (t:ConcreteType)
+        VarLookup (v:string) (t:JLType)
+where mt is the list of candidate type signatures associated with the name
+of the method called.
+    We can consider ExprTrees, then, to be candidate type annotations to the
+expressions, and define what it means for an ExprTree, given a corresponding
+environment, to be valid. At a high level, given an ExprTree and its provided
+environment, we say the ExprTree (which, recall, contains its candidate type
+annotations) is valid if it does not disagree with all known information about
+the ExprTree.
+    + For Consts and VarLookups, this is straightforward: Consts are always valid
+since their types are known, and VarLookups only need to check that the proposed
+annotation is a subtype of the given environment information.
+    + For Calls, it is slightly more complicated as we must determine---
+recursively---that all the parameter annotations are also valid and also the
+return type annotations.
+    This deals with validity; to address the refinement part of inference, we
+also need a concept of subtyping between ExprTrees. Again, this is mostly
+straightforward, as firstly, two ExprTrees must at least match in structure to
+share subtyping relationship. Consts and VarLookups are subtyped via a direct
+component subtyping relation, and Calls are subtyped via contravariance.
+    To define ExprTree subtyping for contravariance, we need a notion relating
+via subtype relation two lists of parameters, which introduced twolist_all_wf
+and notion of depth and the necessity of depth decreasing, and hence
+decidability. (Please refer to "Findings and Challenges.")
+    We also proved that an ExprTree is a subtype of itself, a surprisingly
+tricky relation to show, apparently again due to the argument lists, that led
+to more lemmata about depth.
+    Finally, we bound together the ExprTree validity into Node validity and
+formalized inference validity as each ExprTree in an inferred program to be
+valid and a subtype of the respective ExprTree in the original program.
+
+Findings and Challenges
+    ExprTree subtyping was very difficult to implement. twolist_all_wf seemed
+at first to be easy to define, but then Coq complained about no decreasing
+argument. Thus we needed to define a depth function for ExprTrees, as it is on
+depth that twolist_all_wf decreases, peeling off a layer at every step; this
+we provided as a measure, and proved several auxiliary lemmata about (small,
+but still taking up space), like the fact that Calls can have a depth of 0
+IFF their argument lists are empty.
+    But then we needed to prove that depth actually does decrease! For this we
+needed to prove that the depth of every Call is at least the depth of any of
+its arguments, which in turn required decidability of ExprTree equivalence.
+This is true but somewhat tedious to prove (reducing to the decidability of
+nats and strings), so we Admitted it.
+    Moreover, the way we had to phrase the decrease in depth at every layer of a
+call also compelled us to rephrase twolist_all_wf to take a whole zoo of
+parameters, which was extremely fiddly to figure out: the result we have pasted
+below in all its glory.
+        Fixpoint twolist_all_wf {A:Type} (xs ys: list A)
+                                         (Q: A->Prop)
+                                         (P: forall x:A, A->(Q x)->Prop)
+                                         (O: forall x, (In x xs)->(Q x))
+                                         {struct xs} : Prop
+    Essentially, we have our two lists, xs and ys, our proposition relating
+them, P, but then, because of how Program Fixpoint of exprtree_subtype was
+somehow not providing the maneuverability we needed, we needed to tear out the
+hypotheses concerning list membership into Q and O.
+    Finally, when actually proving the obligations for twolist_all_wf, it turns
+out that Coq also doesn't provide the hypotheses of a cons of the head and tail
+of a list being the list after having destructed the list in a match, so refine
+needed more massaging that would have been nice.
+    That is the abridged story.
+    We have a hammer that may be hard to prove; that we Admitted. Its purpose
+is to deal with what the Program Fixpoint produced, and specifies that given the
+same method table (i.e. the same method [name]), a call, and another call with
+its return type a subtype of the former, and parameter types supertypes of the
+former's (i.e. contravariance), the latter call is a subtype of the first. This
+is probably true, and possibly easy to prove with proper treatment of Program
+Fixpoint, but we couldn't figure it out.
+    We also ran afoul of the "Non strictly positive occurrence" message in
+ExprTreeValid: as mentioned above, validity of call annotations depends on
+validity of parameter annotations. This happened as a result of testing
+validity via fold, which we worked around simply by requiring that every
+argument in the argument list have a valid annotation and sidestepping the fold
+entirely.
+
+Who Did What
+    We pretty much pair programmed, or when that wasn't possible had talked
+about possible proof strategies so that whoever could work on it could go ahead
+and code for a while on that track.

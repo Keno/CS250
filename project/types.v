@@ -11,7 +11,9 @@ Require Import FunctionalExtensionality.
 Include WfExtensionality.
 
 (* TODO: Split into TagT when adding parameters *)
-
+(**
+Here we have types. 
+*)
 Inductive TypeName : Type :=
 | TypName : string -> AbstractType -> TypeName
 with AbstractType : Type :=
@@ -29,13 +31,13 @@ Inductive JLType : Type :=
 
 Definition super (T: JLType) := 
   AT match T with
-    | AT T' => 
-      match T' with
-       | Any => Any
-       | Top => Top
-       | AbstractTyp (TypName _ T'') => T''
-      end
-    | CT (ConcreteTyp (TypName _ T'')) => T''
+       | AT T' => 
+         match T' with
+           | Any => Any
+           | Top => Top
+           | AbstractTyp (TypName _ T'') => T''
+         end
+       | CT (ConcreteTyp (TypName _ T'')) => T''
   end.
 
 Definition typname (T: JLType) :=
@@ -123,41 +125,20 @@ Definition var_isdef (typs : TypedList JLType) (v : var) : Prop :=
     | _ => True
   end.
 
-Inductive PreExprTreeValid : (TypedList JLType) -> ExprTree -> Prop :=
-| PreCall_valid : forall env mt args rettyp,
-                    issub' (rettype (method_lookup mt args)) rettyp ->
-                      PreExprTreeValid env (Call mt args rettyp)
-| PreConst_valid : forall env consttyp,
-                     PreExprTreeValid env (Const consttyp)
-| PreVarLookup_valid : forall env v vartyp,
-                         var_istype env v vartyp ->
-                           PreExprTreeValid env (VarLookup v vartyp).
-
 Inductive ExprTreeValid : (TypedList JLType) -> ExprTree -> Prop :=
 | Call_valid : forall env mt args rettyp,
-                 fold_right (fun h t => PreExprTreeValid env h /\ t) True args ->
-                 ExprTreeValid env (Call mt args rettyp)
+                 issub' (rettype (method_lookup mt args)) rettyp ->
+                 (forall a, (In a args -> ExprTreeValid env a)) ->
+                   ExprTreeValid env (Call mt args rettyp)
 | Const_valid : forall env consttyp,
-                  PreExprTreeValid env (Const consttyp) ->
-                    ExprTreeValid env (Const consttyp)
+                  ExprTreeValid env (Const consttyp)
 | VarLookup_valid : forall env v vartyp,
-                      PreExprTreeValid env (VarLookup v vartyp) ->
+                      var_istype env v vartyp ->
                         ExprTreeValid env (VarLookup v vartyp).
-
-(*Inductive ExprTreeValid_d : (TypedList JLType) -> ExprTree -> nat -> Prop :=
-| Call_valid : forall n env mt args rettyp,
-                 (forall a, In a args /\ PreExprTreeValid env a) ->
-                 (forall a, n >= depth a) ->
-                   ExprTreeValid env (Call mt args*)
 
 Require Import Coq.Program.Wf.
 
 Definition max_all l := fold_right (fun h t => max h t) 0 l.
-(*Fixpoint depth (e : ExprTree) :=
-  match e with
-    | Call _ args _ => S (max_all (map depth args))
-    | _ => 0
-  end.*)
 Fixpoint depth (e : ExprTree) :=
   match e with
     | Call _ args _ => max_all (map (fun a => S (depth a)) args)
@@ -173,14 +154,6 @@ Proof.
   intros.
   specialize exprtree_eq_dec_depth' with (E1:=E1) (E2:=E2) (n:=(depth E1)).
   crush.
-Qed.
-
-Check In.
-
-Definition foobar : forall {A:Type} (xs xs':list A) (hdx:A),
-                      xs = (hdx::xs') -> In hdx (hdx::xs') -> In hdx xs.
-Proof.
-  induction xs; crush.
 Qed.
 
 Fixpoint twolist_all_wf {A:Type} (xs ys: list A) (Q: A->Prop) (P: forall x:A, A->(Q x)->Prop) (O: forall x, (In x xs)->(Q x)) {struct xs} : Prop.
@@ -205,38 +178,25 @@ Fixpoint twolist_all_wf {A:Type} (xs ys: list A) (Q: A->Prop) (P: forall x:A, A-
 Defined.
 
 Definition args (E : ExprTree) : list ExprTree :=
-match E with
-| (Call _ args _) => args
-| _ => nil
-end.
+  match E with
+    | (Call _ args _) => args
+    | _ => nil
+  end.
 
 Lemma maxes : forall x l, In x l -> x <= (max_all l).
-induction l; crush. 
+Proof.
+  induction l; crush. 
 Qed.
 
-(* BELOW IS BAR WITH DEPTH WITH CALL ALWAYS DEPTH >= 1 *)
-(*Definition bar (xs:list ExprTree) (E1 : ExprTree) : (xs = args E1)  -> (forall x, (In x xs)->(depth x < depth E1)).
-  intros.
-  destruct E1 eqn:EC.
-  + simpl args in *.
-    subst.
-    crush.
-    apply le_lt_n_Sm.
-    apply maxes.
-    apply in_map.
-    assumption.
-  + crush.
-  + crush.
-Qed.*)
-
-Definition bar (xs:list ExprTree) (E1 : ExprTree) : (xs = args E1)  -> (forall x, (In x xs)->(depth x < depth E1)).
+Definition depth_decreases (xs:list ExprTree) (E1 : ExprTree) : (xs = args E1) -> (forall x, (In x xs)->(depth x < depth E1)).
+Proof.
   intros.
   destruct E1 eqn:EC.
   + simpl args in *.
     subst.
     induction l.
     contradict H0.
-    assert ({x=a} + {x<>a}). admit.
+    assert ({x=a} + {x<>a}). apply exprtree_eq_dec.
     destruct H.
     subst.
     simpl.
@@ -257,33 +217,18 @@ Definition bar (xs:list ExprTree) (E1 : ExprTree) : (xs = args E1)  -> (forall x
  + crush.
 Qed.
 
-(* Definition wft (arg E1 : ExprTree) : forall mt1 arg1 rt1, E1 = (Call mt1 arg1 rt1) -> In arg arg1 -> depth arg < depth E1 -> Prop.
-Admitted.
-*)
-
 Program Fixpoint exprtree_subtype (E1 E2 : ExprTree) {measure (depth E1)} : Prop :=
   match (E1, E2) with
     | (Call mt1 arg1 rettyp1, Call mt2 arg2 rettyp2) =>
-      mt1 = mt2 /\
-      twolist_all_wf arg1 arg2 (fun E => depth E < depth E1) exprtree_subtype ((bar E1) (eq_refl (args E1))) /\
-      issub rettyp2 rettyp1
+      mt1 = mt2
+      /\ twolist_all_wf arg1 arg2 (fun E => depth E < depth E1)
+                        exprtree_subtype ((depth_decreases E1) (eq_refl (args E1)))
+      /\ issub rettyp2 rettyp1
     | (Const c1, Const c2) => c1 = c2
     | (VarLookup v1 vartyp1, VarLookup v2 vartyp2) => v1 = v2 /\ issub vartyp1 vartyp2
     | (_,_) => False
   end.
 Solve Obligations using crush.
-
-Check exprtree_subtype_func.
-
-(*Lemma exprtree_subtype_trans: forall tree1 tree2 tree', exprtree_subtype tree1 tree' ->
-                                                        exprtree_subtype tree' tree2 ->
-                                                          exprtree_subtype tree1 tree2.
-Proof.
-  Check depth_induct.
-  intros tree1 tree2.
-  specialize depth_induct with (P:=(fun tree' => exprtree_subtype tree1 tree')); intro.
-  specialize depth_induct with (P:=(fun tree' => exprtree_subtype tree' tree2)); intro.
-  induction tree'.*)
   
 Lemma Call0 : forall m args r, 0 = depth (Call m args r) <-> args = [].
 Proof.
@@ -305,9 +250,12 @@ apply in_cons.
 assumption.
 Defined.
 
-Lemma twolist_all_ind : forall A xs ys Q P O, xs = ys -> @list_all_wf A xs Q P O -> @twolist_all_wf A xs ys Q P O.
-intros. subst.
-induction ys; crush.
+Lemma twolist_all_ind : forall A xs ys Q P O, xs = ys ->
+                                              @list_all_wf A xs Q P O ->
+                                                @twolist_all_wf A xs ys Q P O.
+Proof.
+  intros. subst.
+  induction ys; crush.
 Qed.
 
 Lemma exprtree_subtype_hammer : forall m1 m2 args1 args2 r1 r2,
@@ -333,35 +281,31 @@ Proof.
   destruct args2; assumption.
   Admitted.
 
-(*rewrite fix_sub_eq_ext.
-simpl.
-split.
-Check fix_sub_eq_ext.
-unfold_sub exprtree_subtype (exprtree_subtype (Call m1 args1 r1) (Call m2 args2 r2)).
-econstructor. assumption.
-induction args1.
-fold_sub.
-split.*)
-
 Lemma max_ge : forall n m z, z >= max n m -> z >= n /\ z >= m.
-intros.
-specialize le_ge_dec with (n:=n) (m:=m); intros.
-destruct H0. assert (l2:=l). apply max_r in l. crush.
-assert (g2:=g). apply max_l in g. crush.
+Proof.
+  intros.
+  specialize le_ge_dec with (n:=n) (m:=m); intros.
+  destruct H0. assert (l2:=l). apply max_r in l. crush.
+  assert (g2:=g). apply max_l in g. crush.
 Qed.
 
 Lemma max_cons : forall a l n, n >= max_all (a::l) -> n >= max_all l.
-induction l.
-crush.
-intros.
-simpl max_all in *.
-apply max_ge in H. destruct H. assumption.
+Proof.
+  induction l.
+  crush.
+  intros.
+  simpl max_all in *.
+  apply max_ge in H. destruct H. assumption.
 Qed.
 
 Lemma cons_is_app_one : forall A (a: A) (l: list A), a::l = (app [a] l).
-crush. Qed.
+Proof.
+  crush.
+Qed.
 
-Lemma argdepth : forall m n a l j, n >= depth (Call m (a :: l) j) -> n > (depth a) /\ n >= depth (Call m l j).
+Lemma argdepth : forall m n a l j, n >= depth (Call m (a :: l) j) ->
+                                     n > (depth a) /\ n >= depth (Call m l j).
+Proof.
   intros.
   unfold depth in *.
   do 2 match goal with
@@ -444,7 +388,8 @@ Inductive NodeInferenceValid : (TypedList JLType) -> LoweredASTNode -> LoweredAS
                    ExprTreeInferenceValid typs tree1 tree2 ->
                      NodeInferenceValid typs (Return tree1) (Return tree2).
 
-Lemma NodeInferenceValid_refl : forall typs node, NodeValid typs node -> NodeInferenceValid typs node node.
+Lemma NodeInferenceValid_refl : forall typs node, NodeValid typs node ->
+                                                    NodeInferenceValid typs node node.
 Proof.
   induction node; intros; econstructor; econstructor; inversion H; try assumption; 
   ( split; [ assumption | ] ); apply exprtree_subtype_refl.
