@@ -337,11 +337,52 @@ induction args1.
 fold_sub.
 split.*)
 
+Lemma max_ge : forall n m z, z >= max n m -> z >= n /\ z >= m.
+intros.
+specialize le_ge_dec with (n:=n) (m:=m); intros.
+destruct H0. assert (l2:=l). apply max_r in l. crush.
+assert (g2:=g). apply max_l in g. crush.
+Qed.
+
+Lemma max_cons : forall a l n, n >= max_all (a::l) -> n >= max_all l.
+induction l.
+crush.
+intros.
+simpl max_all in *.
+apply max_ge in H. destruct H. assumption.
+Qed.
+
+Lemma cons_is_app_one : forall A (a: A) (l: list A), a::l = (app [a] l).
+crush. Qed.
+
+Lemma argdepth : forall m n a l j, n >= depth (Call m (a :: l) j) -> n > (depth a) /\ n >= depth (Call m l j).
+  intros.
+  unfold depth in *.
+  do 2 match goal with
+    | [ M : context[ (max_all ?l) ] |- _ ] => remember l as x
+    | [ M : context[ (map ?l _) ] |- _ ] => remember l as y
+  end.
+  assert (depth a < max_all x).
+  apply maxes.
+  rewrite Heqx.
+  assert (S (depth a) = (y a)). crush. rewrite H0.
+  apply in_map. crush.
+  split. fold depth. crush.
+  rewrite Heqx in *. clear Heqx. 
+  rewrite cons_is_app_one in H.
+  rewrite map_app in H.
+  simpl map in H.
+  rewrite <- cons_is_app_one in H.
+  apply max_cons in H.
+  assumption.
+Qed.
+
 Lemma exprtree_subtype_refl : forall n tree, n >= depth tree -> exprtree_subtype tree tree.
 Proof.
   induction n.
   intros. destruct tree.
   apply le_lt_or_eq in H. destruct H. contradict H. crush.
+  apply eq_sym in H.
   erewrite Call0 in H. subst.
   econstructor; crush.
   econstructor.
@@ -349,60 +390,23 @@ Proof.
   econstructor.
   reflexivity.
   econstructor.
+
   intros.
   destruct tree.
-
   apply exprtree_subtype_hammer.
   reflexivity.
   econstructor.
+
   induction l.
   crush.
-  unfold twolist_all.
-  split.
-  apply IHn.
+  apply argdepth in H. destruct H.
 
-  econstructor.
-  reflexivity.
-  fold exprtree_subtype.
-  fold exprtree_subtype.
-  unfold exprtree_subtype in *.
-  fold exprtree_subtype_func in *.
-  match goal with 
-      | [ |- context[ twolist_all_wf ?x ?y ?Q ?P ?O ] ] => remember P as P1; remember O as O1
-  end.
-  split; [ | econstructor ].
-  eapply twolist_all_ind. reflexivity.
+  split. apply IHn. apply lt_n_Sm_le. assumption.
+  apply IHl. assumption.
 
-  unfold list_all_wf. simpl.
-  crush. crush.
-
-  assert (list_all_wf l (fun E => depth E < depth (Call m l j)) exprtree_subtype ((bar (Call m l j)) (eq_refl (args (Call m l j))))). 
-  eapply twolist_all_ind.
-  induction l.
-  crush.
-  econstructor.
-  ref
-  crush.
-  erewrite twolist_all_ind.
-
-crush.
- crush.
-  econstructor.
   crush.
   crush.
-  econstructor. reflexivity. econstructor.
-  intros. destruct tree.
-  induction l.
-  crush.
-  eapply IHn.
-  
-
-intro.
-econstructor.
-reflexivity.
-
-crush.
-Check exprtree_subtype.
+Qed.
 
 Lemma Call_raise_params : forall args1 args2 env mt rettyp,
                              ->
